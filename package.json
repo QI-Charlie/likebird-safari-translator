@@ -1,0 +1,19 @@
+{
+  "name": "yiliu-safari-translator",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "译流 —— 使用外部大模型 API 的 Safari 整页 / 划词翻译扩展",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node --test tests/*.test.js",
+    "check": "npm test",
+    "app": "bash scripts/build-app.sh",
+    "icons": "PYTHONPATH=.tools python3 scripts/make-icons.py",
+    "pretest": "npm run build"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "linkedom": "^0.18.15"
+  }
+}

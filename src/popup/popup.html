@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>译流</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="top">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">译</span>
+          <div class="brand-text">
+            <strong>译流</strong>
+            <span>YiLiu · 网页翻译</span>
+          </div>
+        </div>
+        <button class="icon-btn" id="settingsBtn" type="button" title="打开设置" aria-label="打开设置">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 15.2a3.2 3.2 0 100-6.4 3.2 3.2 0 000 6.4z" />
+            <path d="M19.4 15a1.7 1.7 0 00.34 1.88l.06.06-2.83 2.83-.06-.06a1.7 1.7 0 00-1.88-.34 1.7 1.7 0 00-1.03 1.56V21h-4v-.08A1.7 1.7 0 008.94 19.4a1.7 1.7 0 00-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 004.6 15a1.7 1.7 0 00-1.56-1.03H3v-4h.08A1.7 1.7 0 004.6 8.94a1.7 1.7 0 00-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 009 4.6a1.7 1.7 0 001.03-1.56V3h4v.08A1.7 1.7 0 0015.06 4.6a1.7 1.7 0 001.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0019.4 9c.14.62.68 1.03 1.32 1.03H21v4h-.08c-.64 0-1.18.4-1.52 1.03z" />
+          </svg>
+        </button>
+      </header>
+
+      <main>
+        <section class="site-card">
+          <div class="site-icon" id="siteIcon">Y</div>
+          <div class="site-meta">
+            <strong id="siteDomain">正在读取…</strong>
+            <span id="siteTitle">当前标签页</span>
+          </div>
+          <span class="status-pill" id="statusPill">待翻译</span>
+        </section>
+
+        <div class="banner" id="apiBanner" hidden>
+          <div class="banner-icon">!</div>
+          <div class="banner-copy">
+            <strong>还差一步</strong>
+            <span>填入大模型 API Key 即可开始翻译</span>
+          </div>
+          <button type="button" id="openSettings">去配置</button>
+        </div>
+
+        <div class="banner banner-soft" id="excludedBanner" hidden>
+          <div class="banner-icon">–</div>
+          <div class="banner-copy">
+            <strong>此站点已排除</strong>
+            <span>可在设置 → 站点规则中移除</span>
+          </div>
+        </div>
+
+        <section class="controls">
+          <label class="field">
+            <span class="field-label">目标语言</span>
+            <span class="select-wrap">
+              <select id="targetLang" aria-label="目标语言"></select>
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4" /></svg>
+            </span>
+          </label>
+
+          <div class="actions">
+            <button class="primary-btn" id="translateBtn" type="button">
+              <span class="btn-mark" aria-hidden="true">译</span>
+              <span class="btn-label">翻译此页</span>
+              <kbd id="shortcut">⌥ A</kbd>
+            </button>
+            <button class="secondary-btn" id="restoreBtn" type="button" disabled>显示原文</button>
+          </div>
+
+          <label class="switch-row">
+            <span class="switch-copy">
+              <strong>自动翻译此网站</strong>
+              <span>以后打开此站点时自动翻译</span>
+            </span>
+            <input type="checkbox" id="autoSite" />
+            <span class="switch-track" aria-hidden="true"><span></span></span>
+          </label>
+        </section>
+
+        <p class="hint" id="hint">选中网页文字，点击浮出的「译」即可划词翻译。</p>
+      </main>
+
+      <footer>
+        <button type="button" id="optionsBtn">设置</button>
+        <span class="dot">·</span>
+        <button type="button" id="clearCache">清除缓存</button>
+        <span class="spacer"></span>
+        <span class="version" id="version"></span>
+      </footer>
+    </div>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="popup.js"></script>
+  </body>
+</html>

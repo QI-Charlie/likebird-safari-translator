@@ -1,0 +1,75 @@
+{
+  "manifest_version": 2,
+  "name": "译流 · 网页翻译",
+  "short_name": "译流",
+  "version": "1.0.0",
+  "description": "用你自己的大模型 API 翻译整个网页，或选中文字即时翻译。双语对照、术语表、本地缓存。",
+  "author": "YiLiu",
+  "icons": {
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "64": "icons/icon-64.png",
+    "128": "icons/icon-128.png",
+    "256": "icons/icon-256.png",
+    "512": "icons/icon-512.png"
+  },
+  "permissions": [
+    "storage",
+    "tabs",
+    "activeTab",
+    "contextMenus",
+    "<all_urls>"
+  ],
+  "background": {
+    "scripts": [
+      "background.js"
+    ],
+    "persistent": false
+  },
+  "browser_action": {
+    "default_title": "译流 · 翻译此页",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "19": "icons/icon-19.png",
+      "32": "icons/icon-32.png",
+      "38": "icons/icon-38.png",
+      "48": "icons/icon-48.png"
+    }
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true,
+    "browser_style": false
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "css": [
+        "content.css"
+      ],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ],
+  "commands": {
+    "toggle-page": {
+      "suggested_key": {
+        "default": "Alt+A"
+      },
+      "description": "翻译或恢复当前页面"
+    },
+    "translate-selection": {
+      "suggested_key": {
+        "default": "Alt+S"
+      },
+      "description": "翻译当前选中的文字"
+    }
+  },
+  "content_security_policy": "script-src 'self'; object-src 'self'"
+}

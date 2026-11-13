@@ -1,0 +1,11 @@
+node_modules/
+.npm-cache/
+.tools/
+build/
+scratch/
+.DS_Store
+*.log
+
+# Keep the ready-to-install release archive, but not local build dirs.
+dist/*
+!dist/YiLiu-1.0.0.zip

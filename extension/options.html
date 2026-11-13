@@ -1,0 +1,420 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>译流设置</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="sidebar">
+        <div class="side-brand">
+          <span class="brand-mark" aria-hidden="true">译</span>
+          <div>
+            <strong>译流</strong>
+            <span>YiLiu</span>
+          </div>
+        </div>
+
+        <nav class="side-nav" aria-label="设置导航">
+          <a href="#service" class="nav-link is-active" data-nav="service">
+            <span class="nav-icon">01</span><span>翻译服务</span>
+          </a>
+          <a href="#language" class="nav-link" data-nav="language">
+            <span class="nav-icon">02</span><span>语言与显示</span>
+          </a>
+          <a href="#sites" class="nav-link" data-nav="sites">
+            <span class="nav-icon">03</span><span>站点规则</span>
+          </a>
+          <a href="#glossary" class="nav-link" data-nav="glossary">
+            <span class="nav-icon">04</span><span>术语与提示词</span>
+          </a>
+          <a href="#advanced" class="nav-link" data-nav="advanced">
+            <span class="nav-icon">05</span><span>缓存与高级</span>
+          </a>
+          <a href="#about" class="nav-link" data-nav="about">
+            <span class="nav-icon">06</span><span>关于</span>
+          </a>
+        </nav>
+
+        <div class="side-note">
+          <span class="side-note-dot"></span>
+          <div>
+            <strong>本地优先</strong>
+            <p>API Key 只保存在这台 Mac 的扩展存储中，不经过译流服务器。</p>
+          </div>
+        </div>
+
+        <div class="side-foot">
+          <span>译流 v<span id="sideVersion">1.0.0</span></span>
+          <span>Safari Web Extension</span>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div class="topbar-title">
+            <span class="eyebrow">PREFERENCES</span>
+            <h1>让每一页，都读得懂</h1>
+          </div>
+          <div class="topbar-actions">
+            <span class="save-state" id="saveState">所有更改已保存</span>
+            <button class="ghost-btn" id="testTop" type="button">
+              <span class="status-dot"></span>测试连接
+            </button>
+          </div>
+        </header>
+
+        <section class="section" id="service">
+          <div class="section-head">
+            <div>
+              <span class="section-index">01</span>
+              <h2>翻译服务</h2>
+              <p>接入你的大模型 API。所有请求由浏览器直接发往你填写的地址。</p>
+            </div>
+            <span class="section-badge" id="configBadge">未配置</span>
+          </div>
+
+          <div class="card">
+            <div class="grid two">
+              <label class="field">
+                <span class="label">服务预设</span>
+                <select id="preset"></select>
+                <small class="help" id="presetHint">选择服务商会自动填入地址与模型，仍可手动修改。</small>
+              </label>
+
+              <label class="field">
+                <span class="label">接口协议</span>
+                <select id="providerType">
+                  <option value="openai">OpenAI 兼容（/chat/completions）</option>
+                  <option value="anthropic">Anthropic Messages</option>
+                </select>
+                <small class="help">大多数服务使用 OpenAI 兼容协议。</small>
+              </label>
+            </div>
+
+            <div class="grid two">
+              <label class="field">
+                <span class="label">API 地址</span>
+                <input id="baseUrl" type="url" spellcheck="false" autocomplete="off" placeholder="https://api.deepseek.com/v1" />
+                <small class="help" id="baseUrlHelp">以 /v1 结尾的地址会自动补全请求路径。</small>
+              </label>
+
+              <label class="field">
+                <span class="label">模型名称</span>
+                <input id="model" type="text" spellcheck="false" autocomplete="off" placeholder="deepseek-chat" />
+                <small class="help">DeepSeek 请填 deepseek-chat 或 deepseek-reasoner；其他服务填对应模型 ID。</small>
+              </label>
+            </div>
+
+            <label class="field">
+              <span class="label">API Key</span>
+              <span class="input-with-action">
+                <input id="apiKey" type="password" spellcheck="false" autocomplete="new-password" placeholder="sk-…" />
+                <button type="button" class="inside-btn" id="toggleKey">显示</button>
+              </span>
+              <small class="help">本地模型（Ollama / LM Studio）通常可以留空。</small>
+            </label>
+
+            <div class="test-row">
+              <button class="primary-btn" id="testConnection" type="button">
+                <span class="spinner" id="testSpinner" hidden></span>
+                <span id="testLabel">测试连接</span>
+              </button>
+              <span class="test-result" id="testResult" role="status"></span>
+            </div>
+
+            <details class="details">
+              <summary>高级请求参数</summary>
+              <div class="details-body">
+                <div class="grid three">
+                  <label class="field">
+                    <span class="label">温度 <output id="tempValue">0.2</output></span>
+                    <input id="temperature" type="range" min="0" max="1.5" step="0.1" />
+                    <small class="help">越低越稳定，翻译建议 0–0.3。</small>
+                  </label>
+                  <label class="field">
+                    <span class="label">最大输出 tokens</span>
+                    <input id="maxTokens" type="number" min="128" max="32000" step="128" />
+                    <small class="help">单次请求的上限。</small>
+                  </label>
+                  <label class="field">
+                    <span class="label">JSON 模式</span>
+                    <span class="switch-line">
+                      <input id="jsonMode" type="checkbox" />
+                      <span class="switch-track" aria-hidden="true"><span></span></span>
+                      <span class="switch-label">启用 response_format</span>
+                    </span>
+                    <small class="help">服务商不支持时会自动降级。</small>
+                  </label>
+                </div>
+                <label class="field">
+                  <span class="label">自定义请求头</span>
+                  <textarea id="extraHeaders" rows="3" spellcheck="false" placeholder="X-Custom-Header: value&#10;HTTP-Referer: https://example.com"></textarea>
+                  <small class="help">每行一个，格式 <code>Name: Value</code>。请勿填写会泄露给他人的密钥。</small>
+                </label>
+              </div>
+            </details>
+          </div>
+        </section>
+
+        <section class="section" id="language">
+          <div class="section-head">
+            <div>
+              <span class="section-index">02</span>
+              <h2>语言与显示</h2>
+              <p>决定译文的语言、语气，以及译文如何出现在原文旁边。</p>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="grid three">
+              <label class="field">
+                <span class="label">目标语言</span>
+                <select id="targetLang"></select>
+              </label>
+              <label class="field">
+                <span class="label">原文语言</span>
+                <select id="sourceLang"></select>
+              </label>
+              <label class="field">
+                <span class="label">翻译风格</span>
+                <select id="style"></select>
+              </label>
+            </div>
+
+            <div class="field">
+              <span class="label">显示方式</span>
+              <div class="mode-grid">
+                <label class="mode-card">
+                  <input type="radio" name="mode" value="bilingual" />
+                  <span class="mode-preview bilingual-preview">
+                    <i>Reading changes us.</i>
+                    <b>阅读改变我们。</b>
+                  </span>
+                  <span class="mode-copy"><strong>双语对照</strong><small>译文显示在原文下方</small></span>
+                </label>
+                <label class="mode-card">
+                  <input type="radio" name="mode" value="replace" />
+                  <span class="mode-preview replace-preview"><b>阅读改变我们。</b></span>
+                  <span class="mode-copy"><strong>仅看译文</strong><small>隐藏原文，保留版面</small></span>
+                </label>
+              </div>
+            </div>
+
+            <div class="grid three">
+              <label class="field">
+                <span class="label">译文样式</span>
+                <select id="displayStyle">
+                  <option value="plain">简洁</option>
+                  <option value="soft">柔和底色</option>
+                  <option value="line">左侧竖线</option>
+                </select>
+              </label>
+              <label class="field">
+                <span class="label">译文字号 <output id="fontSizeValue">15px</output></span>
+                <input id="fontSize" type="range" min="12" max="22" step="1" />
+              </label>
+              <label class="field">
+                <span class="label">译文颜色</span>
+                <span class="color-line">
+                  <input id="color" type="color" />
+                  <input id="colorText" type="text" spellcheck="false" maxlength="7" />
+                  <button type="button" class="text-btn" id="resetColor">恢复默认</button>
+                </span>
+              </label>
+            </div>
+
+            <div class="switch-pair">
+              <label class="switch-row compact">
+                <span class="switch-copy">
+                  <strong>启用划词翻译</strong>
+                  <span>选中网页文字后，在光标旁显示「译」按钮。</span>
+                </span>
+                <input id="selectionEnabled" type="checkbox" />
+                <span class="switch-track" aria-hidden="true"><span></span></span>
+              </label>
+              <label class="switch-row compact">
+                <span class="switch-copy">
+                  <strong>选中后自动翻译</strong>
+                  <span>松开鼠标即弹出译文，不再需要点击按钮。</span>
+                </span>
+                <input id="selectionAuto" type="checkbox" />
+                <span class="switch-track" aria-hidden="true"><span></span></span>
+              </label>
+            </div>
+
+            <div class="preview-wrap">
+              <div class="preview-head">
+                <span>实时预览</span>
+                <span class="preview-tag">双语 · 自然流畅</span>
+              </div>
+              <div class="preview-card" id="preview">
+                <div class="preview-title">The quiet power of reading</div>
+                <p class="preview-original">
+                  Reading gives us a place to stand when the noise of the world grows loud. It asks
+                  for nothing but a little attention.
+                </p>
+                <div class="preview-translation" id="previewTranslation">
+                  阅读给予我们一处立足之地，让世界的喧嚣退后。它索取的，不过是一点点注意力。
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" id="sites">
+          <div class="section-head">
+            <div>
+              <span class="section-index">03</span>
+              <h2>站点规则</h2>
+              <p>控制哪些网站自动翻译。也支持在工具栏弹窗里一键开关当前网站。</p>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="grid two">
+              <label class="field">
+                <span class="label">自动翻译的网站</span>
+                <textarea id="autoSites" rows="6" spellcheck="false" placeholder="example.com&#10;news.ycombinator.com&#10;*.medium.com"></textarea>
+                <small class="help">每行一个域名；子域名会自动包含。</small>
+              </label>
+              <label class="field">
+                <span class="label">排除的网站</span>
+                <textarea id="excludeSites" rows="6" spellcheck="false" placeholder="mail.google.com&#10;*.bank.com"></textarea>
+                <small class="help">这些网站不会自动翻译，手动点击也会被拦截。</small>
+              </label>
+            </div>
+            <label class="switch-row compact">
+              <span class="switch-copy">
+                <strong>跳过已是目标语言的页面</strong>
+                <span>自动翻译时读取网页 lang 标记，避免重复翻译。</span>
+              </span>
+              <input id="skipTargetLanguage" type="checkbox" />
+              <span class="switch-track" aria-hidden="true"><span></span></span>
+            </label>
+          </div>
+        </section>
+
+        <section class="section" id="glossary">
+          <div class="section-head">
+            <div>
+              <span class="section-index">04</span>
+              <h2>术语与提示词</h2>
+              <p>固定专有名词的译法，或给模型一条额外的风格指令。</p>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="grid two">
+              <label class="field">
+                <span class="label">术语表</span>
+                <textarea id="glossary" rows="8" spellcheck="false" placeholder="Transformer = 变换器&#10;RAG = 检索增强生成&#10;token => 词元"></textarea>
+                <small class="help">每行 <code>原文 = 译文</code> 或 <code>原文 => 译文</code>。只对出现在文本中的术语生效。</small>
+              </label>
+              <label class="field">
+                <span class="label">自定义提示词</span>
+                <textarea id="customPrompt" rows="8" spellcheck="false" placeholder="例如：保留原文中的代码注释，不要翻译产品名称。"></textarea>
+                <small class="help">会附加到系统提示词末尾。请勿要求模型输出 JSON 以外的格式。</small>
+              </label>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" id="advanced">
+          <div class="section-head">
+            <div>
+              <span class="section-index">05</span>
+              <h2>缓存与高级</h2>
+              <p>缓存能避免重复请求，节省 token。高级参数通常保持默认即可。</p>
+            </div>
+          </div>
+
+          <div class="card">
+            <label class="switch-row compact">
+              <span class="switch-copy">
+                <strong>启用本地翻译缓存</strong>
+                <span>相同文本、模型、语言与风格会直接复用译文；不上传任何缓存内容。</span>
+              </span>
+              <input id="cacheEnabled" type="checkbox" />
+              <span class="switch-track" aria-hidden="true"><span></span></span>
+            </label>
+
+            <div class="grid three">
+              <label class="field">
+                <span class="label">缓存条数上限</span>
+                <input id="cacheMax" type="number" min="50" max="2000" step="50" />
+              </label>
+              <label class="field">
+                <span class="label">每批段落数</span>
+                <input id="batchItems" type="number" min="1" max="16" step="1" />
+              </label>
+              <label class="field">
+                <span class="label">并发请求数</span>
+                <input id="concurrency" type="number" min="1" max="4" step="1" />
+              </label>
+            </div>
+
+            <div class="grid two">
+              <label class="field">
+                <span class="label">请求超时（秒）</span>
+                <input id="timeout" type="number" min="5" max="180" step="5" />
+              </label>
+              <div class="field action-field">
+                <span class="label">本地缓存</span>
+                <button class="secondary-btn" id="clearCache" type="button">清除全部缓存</button>
+              </div>
+            </div>
+
+            <div class="data-row">
+              <button class="secondary-btn" id="exportSettings" type="button">导出设置</button>
+              <button class="secondary-btn" id="importSettings" type="button">导入设置</button>
+              <input id="importFile" type="file" accept="application/json,.json" hidden />
+              <span class="data-note">导出文件不包含 API Key。</span>
+              <span class="spacer"></span>
+              <button class="danger-btn" id="resetSettings" type="button">恢复默认设置</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" id="about">
+          <div class="section-head">
+            <div>
+              <span class="section-index">06</span>
+              <h2>关于译流</h2>
+            </div>
+          </div>
+          <div class="card about-card">
+            <div class="about-brand">
+              <span class="brand-mark large" aria-hidden="true">译</span>
+              <div>
+                <strong>译流 · YiLiu</strong>
+                <p>一个把大模型带进 Safari 的整页与划词翻译扩展。</p>
+              </div>
+            </div>
+            <div class="about-grid">
+              <div><span>版本</span><strong id="aboutVersion">1.0.0</strong></div>
+              <div><span>快捷键</span><strong id="aboutShortcut">⌥ A</strong></div>
+              <div><span>翻译方式</span><strong>整页 · 划词</strong></div>
+              <div><span>数据去向</span><strong>仅你的 API</strong></div>
+            </div>
+            <p class="about-note">
+              译流不会收集、上传或分析你的浏览内容。整页翻译会把页面中的文字发送到你在
+              「翻译服务」中配置的 API 地址；划词翻译只发送选中的文字及少量上下文。缓存保存在本机，
+              可随时清除。
+            </p>
+          </div>
+        </section>
+
+        <footer class="page-foot">
+          <span>译流 YiLiu · 用你自己的模型读懂世界</span>
+          <span>设置自动保存</span>
+        </footer>
+      </main>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="options.js"></script>
+  </body>
+</html>
