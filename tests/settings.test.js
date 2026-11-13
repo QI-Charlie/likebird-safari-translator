@@ -14,39 +14,37 @@ test('mergeSettings fills defaults and preserves nested values', () => {
   const settings = mergeSettings({
     targetLang: 'ja',
     provider: { apiKey: 'secret', model: 'custom-model' },
-    ui: { fontSize: 17 },
   });
   assert.equal(settings.targetLang, 'ja');
   assert.equal(settings.provider.apiKey, 'secret');
   assert.equal(settings.provider.model, 'custom-model');
   assert.equal(settings.provider.baseUrl, DEFAULT_SETTINGS.provider.baseUrl);
-  assert.equal(settings.ui.fontSize, 17);
-  assert.equal(settings.ui.color, DEFAULT_SETTINGS.ui.color);
   assert.equal(settings.batch.concurrency, 2);
 });
 
 test('mergeSettings clamps hostile or malformed values', () => {
   const settings = mergeSettings({
     targetLang: 'not-a-language',
-    mode: 'explode',
     style: 'weird',
     batch: { maxItems: 999, concurrency: -4 },
     cache: { maxEntries: 2 },
-    ui: { fontSize: 900, color: 'red' },
     advanced: { timeoutMs: 1 },
   });
   assert.equal(settings.targetLang, 'zh-CN');
-  assert.equal(settings.mode, 'bilingual');
   assert.equal(settings.style, 'natural');
   assert.equal(settings.batch.maxItems, 16);
   assert.equal(settings.batch.concurrency, 1);
   assert.equal(settings.cache.maxEntries, 50);
-  assert.equal(settings.ui.fontSize, 22);
-  assert.equal(settings.ui.color, DEFAULT_SETTINGS.ui.color);
   assert.equal(settings.advanced.timeoutMs, 5000);
 });
 
-test('public settings never expose the API key', () => {
+test('the previous Traditional Chinese default migrates while explicit new choices persist', () => {
+  assert.equal(mergeSettings({ schemaVersion: 2, targetLang: 'zh-TW' }).targetLang, 'zh-CN');
+  assert.equal(mergeSettings({ schemaVersion: 1, targetLang: 'ja' }).targetLang, 'ja');
+  assert.equal(mergeSettings({ ...DEFAULT_SETTINGS, targetLang: 'zh-TW' }).targetLang, 'zh-TW');
+});
+
+test('public settings never expose API credentials', () => {
   const settings = mergeSettings({
     provider: { apiKey: 'sk-very-secret', baseUrl: 'https://api.example.com/v1', model: 'm' },
   });
@@ -55,6 +53,8 @@ test('public settings never expose the API key', () => {
   assert.equal(safe.provider.apiKeySet, true);
   assert.equal(safe.configured, true);
   assert.equal(JSON.stringify(safe).includes('sk-very-secret'), false);
+  const withHeaders = mergeSettings({ provider: { extraHeaders: 'Authorization: Bearer private' } });
+  assert.equal(publicSettings(withHeaders).provider.extraHeaders, undefined);
 });
 
 test('local endpoints can be keyless; remote endpoints cannot', () => {

@@ -52,12 +52,18 @@ function runEsbuild(entry) {
     '--format=iife',
     '--platform=browser',
     '--target=safari15',
-    '--charset=utf8',
+    // Safari's generated background page can decode classic scripts without UTF-8.
+    '--charset=ascii',
     '--loader:.css=text',
+    '--loader:.png=dataurl',
+    '--loader:.svg=text',
     `--define:__YILIU_VERSION__=${JSON.stringify(pkg.version)}`,
     '--log-level=warning',
   ];
   execFileSync(esbuild, args, { cwd: root, stdio: ['ignore', 'pipe', 'inherit'] });
+  // esbuild leaves regular-expression literals and preserved comments as written.
+  assert(!readFileSync(join(outDir, entry.out)).some((byte) => byte > 127),
+    `${entry.out} contains unescaped non-ASCII bytes`);
 }
 
 async function main() {
@@ -78,12 +84,17 @@ async function main() {
   }
 
   copy('src/manifest.json', 'manifest.json');
-  copy('src/content/content.css', 'content.css');
+  copy('LICENSE', 'licenses/project.txt');
+  for (const file of ['LICENSE', 'THIRD_PARTY_LICENSES.md', 'LICENSES/Apache-2.0.txt']) {
+    copy(`node_modules/opencc-js/${file}`, `licenses/opencc-js/${file}`);
+  }
+  copy('src/shared/ui.css', 'ui.css');
   copy('src/popup/popup.html', 'popup.html');
   copy('src/popup/popup.css', 'popup.css');
   copy('src/options/options.html', 'options.html');
   copy('src/options/options.css', 'options.css');
   copy('assets/icons', 'icons');
+  copy('assets/remix-icon', 'icons/remix');
 
   const manifestPath = join(outDir, 'manifest.json');
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
@@ -111,7 +122,7 @@ async function main() {
 
   const total = [...referenced].reduce((sum, file) => sum + statSync(join(outDir, file)).size, 0);
   console.log(`\n  extension/  ${(total / 1024).toFixed(1)} KB referenced assets`);
-  console.log(`  译流 v${pkg.version} build complete.`);
+  console.log(`  LikeBird v${pkg.version} build complete.`);
 }
 
 main().catch((error) => {

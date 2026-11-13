@@ -26,8 +26,8 @@ static NSView *YLNumberBadge(NSString *number) {
     badge.layer.backgroundColor = YLColor(0xFFFFFF, 1).CGColor;
     badge.layer.cornerRadius = 8;
     badge.layer.borderWidth = 1;
-    badge.layer.borderColor = YLColor(0xE2DED4, 1).CGColor;
-    NSTextField *label = YLLabel(number, 11, YLColor(0x111111, 1), YES);
+    badge.layer.borderColor = YLColor(0x171717, 0.14).CGColor;
+    NSTextField *label = YLLabel(number, 11, YLColor(0x171717, 1), YES);
     label.alignment = NSTextAlignmentCenter;
     label.translatesAutoresizingMaskIntoConstraints = NO;
     [badge addSubview:label];
@@ -45,8 +45,8 @@ static NSView *YLStepRow(NSString *number, NSString *title, NSString *detail) {
     row.translatesAutoresizingMaskIntoConstraints = NO;
     NSView *badge = YLNumberBadge(number);
     NSStackView *copy = [NSStackView stackViewWithViews:@[
-        YLLabel(title, 13, YLColor(0x111111, 1), YES),
-        YLLabel(detail, 11, YLColor(0x6F6B63, 1), NO),
+        YLLabel(title, 13, YLColor(0x171717, 1), YES),
+        YLLabel(detail, 11, YLColor(0x171717, 0.72), NO),
     ]];
     copy.orientation = NSUserInterfaceLayoutOrientationVertical;
     copy.alignment = NSLayoutAttributeLeading;
@@ -97,15 +97,15 @@ static NSView *YLStepRow(NSString *number, NSString *title, NSString *detail) {
 }
 
 - (void)buildMenu {
-    NSMenu *mainMenu = [[NSMenu alloc] initWithTitle:@"译流"];
-    NSMenuItem *appItem = [[NSMenuItem alloc] initWithTitle:@"译流" action:nil keyEquivalent:@""];
+    NSMenu *mainMenu = [[NSMenu alloc] initWithTitle:@"LikeBird 飞译"];
+    NSMenuItem *appItem = [[NSMenuItem alloc] initWithTitle:@"LikeBird 飞译" action:nil keyEquivalent:@""];
     [mainMenu addItem:appItem];
 
-    NSMenu *appMenu = [[NSMenu alloc] initWithTitle:@"译流"];
-    [appMenu addItemWithTitle:@"关于译流" action:@selector(orderFrontStandardAboutPanel:) keyEquivalent:@""];
+    NSMenu *appMenu = [[NSMenu alloc] initWithTitle:@"LikeBird 飞译"];
+    [appMenu addItemWithTitle:@"关于 LikeBird 飞译" action:@selector(orderFrontStandardAboutPanel:) keyEquivalent:@""];
     [appMenu addItem:[NSMenuItem separatorItem]];
-    [appMenu addItemWithTitle:@"隐藏译流" action:@selector(hide:) keyEquivalent:@"h"];
-    [appMenu addItemWithTitle:@"退出译流" action:@selector(terminate:) keyEquivalent:@"q"];
+    [appMenu addItemWithTitle:@"隐藏 LikeBird 飞译" action:@selector(hide:) keyEquivalent:@"h"];
+    [appMenu addItemWithTitle:@"退出 LikeBird 飞译" action:@selector(terminate:) keyEquivalent:@"q"];
     appItem.submenu = appMenu;
 
     NSMenuItem *editItem = [[NSMenuItem alloc] initWithTitle:@"编辑" action:nil keyEquivalent:@""];
@@ -125,9 +125,11 @@ static NSView *YLStepRow(NSString *number, NSString *title, NSString *detail) {
     box.layer.backgroundColor = YLColor(0xFFFFFF, 1).CGColor;
     box.layer.cornerRadius = 10;
     box.layer.borderWidth = 1;
-    box.layer.borderColor = YLColor(0xE2DED4, 1).CGColor;
+    box.layer.borderColor = YLColor(0x171717, 0.14).CGColor;
 
-    NSTextField *label = YLLabel(text, 10.5, YLColor(0x111111, 1), NO);
+    NSTextField *label = YLLabel(text, 10.5, YLColor(0x171717, 1), NO);
+    label.preferredMaxLayoutWidth = 620;
+    [label setContentCompressionResistancePriority:NSLayoutPriorityDefaultLow forOrientation:NSLayoutConstraintOrientationHorizontal];
     label.translatesAutoresizingMaskIntoConstraints = NO;
     [box addSubview:label];
     [NSLayoutConstraint activateConstraints:@[
@@ -146,14 +148,15 @@ static NSView *YLStepRow(NSString *number, NSString *title, NSString *detail) {
                                                        NSWindowStyleMaskMiniaturizable
                                                backing:NSBackingStoreBuffered
                                                  defer:NO];
-    self.window.title = @"译流";
+    self.window.title = @"LikeBird 飞译";
     self.window.minSize = NSMakeSize(620, 500);
-    self.window.backgroundColor = YLColor(0xF7F4EC, 1);
+    self.window.appearance = [NSAppearance appearanceNamed:NSAppearanceNameAqua];
+    self.window.backgroundColor = YLColor(0xFFFFFF, 1);
     [self.window center];
 
     NSView *content = self.window.contentView;
     content.wantsLayer = YES;
-    content.layer.backgroundColor = YLColor(0xF7F4EC, 1).CGColor;
+    content.layer.backgroundColor = YLColor(0xFFFFFF, 1).CGColor;
 
     NSImageView *icon = [[NSImageView alloc] initWithFrame:NSZeroRect];
     NSString *iconPath = [[NSBundle mainBundle] pathForResource:@"AppIcon" ofType:@"icns"];
@@ -163,10 +166,17 @@ static NSView *YLStepRow(NSString *number, NSString *title, NSString *detail) {
     [icon.widthAnchor constraintEqualToConstant:58].active = YES;
     [icon.heightAnchor constraintEqualToConstant:58].active = YES;
 
+    NSImageView *wordmark = [[NSImageView alloc] initWithFrame:NSZeroRect];
+    wordmark.image = [[NSBundle mainBundle] imageForResource:@"LikeBirdWordmark"];
+    wordmark.imageScaling = NSImageScaleProportionallyUpOrDown;
+    wordmark.accessibilityLabel = @"LikeBird 飞译";
+    wordmark.translatesAutoresizingMaskIntoConstraints = NO;
+    [wordmark.widthAnchor constraintEqualToConstant:158].active = YES;
+    [wordmark.heightAnchor constraintEqualToConstant:31].active = YES;
+
     NSStackView *titleStack = [NSStackView stackViewWithViews:@[
-        YLLabel(@"译流", 30, YLColor(0x111111, 1), YES),
-        YLLabel(@"让每一页，都读得懂", 13, YLColor(0x6F6B63, 1), NO),
-        YLLabel(@"Safari 整页翻译 · 划词翻译", 10.5, YLColor(0x7C776D, 1), NO),
+        wordmark,
+        YLLabel(@"用母语，自由读设计。", 12, YLColor(0x171717, 0.72), NO),
     ]];
     titleStack.orientation = NSUserInterfaceLayoutOrientationVertical;
     titleStack.alignment = NSLayoutAttributeLeading;
@@ -183,30 +193,30 @@ static NSView *YLStepRow(NSString *number, NSString *title, NSString *detail) {
     [divider.heightAnchor constraintEqualToConstant:1].active = YES;
 
     NSStackView *steps = [NSStackView stackViewWithViews:@[
-        YLStepRow(@"1", @"启用扩展", @"在 Safari 设置 → 扩展中勾选「译流」。"),
-        YLStepRow(@"2", @"配置模型", @"填入任意 OpenAI 兼容 API 的地址、Key 与模型名。"),
-        YLStepRow(@"3", @"开始阅读", @"点击工具栏「译」或按 ⌥A 翻译整页；选中文字即可划词翻译。"),
+        YLStepRow(@"1", @"启用扩展", @"在 Safari 设置 → 扩展中勾选「LikeBird 飞译」。"),
+        YLStepRow(@"2", @"连接翻译服务", @"在飞译设置中选择服务商，粘贴 API Key，然后连接。"),
+        YLStepRow(@"3", @"开始阅读", @"点击 Safari 工具栏的飞译按钮翻译整页。选中文字，也可以只翻这一段。"),
     ]];
     steps.orientation = NSUserInterfaceLayoutOrientationVertical;
     steps.alignment = NSLayoutAttributeLeading;
     steps.spacing = 13;
 
     NSView *note = [self noteBoxWithText:
-        @"本地开发版未经过 Apple 签名。如果扩展没有出现在 Safari 的扩展列表中，请先在 Safari 设置 → 高级中勾选「显示网页开发者功能」，再到「开发」菜单勾选「允许未签名的扩展」。每次重启 Safari 后需要重新勾选。"];
+        @"开发版使用临时签名。如果扩展没有出现在 Safari 的扩展列表中，请先在 Safari 设置 → 高级中勾选「显示网页开发者功能」，再到「开发」菜单勾选「允许未签名的扩展」。每次重启 Safari 后需要重新勾选。"];
 
     NSButton *openButton = [NSButton buttonWithTitle:@"打开 Safari 扩展设置" target:self action:@selector(openPreferences:)];
     openButton.bezelStyle = NSBezelStyleRegularSquare;
     openButton.bordered = NO;
     openButton.keyEquivalent = @"\r";
-    openButton.contentTintColor = YLColor(0xF7F4EC, 1);
-    openButton.cell.backgroundStyle = NSBackgroundStyleDark;
+    openButton.contentTintColor = YLColor(0xFFFFFF, 1);
+    openButton.cell.backgroundStyle = NSBackgroundStyleEmphasized;
     openButton.attributedTitle = [[NSAttributedString alloc] initWithString:@"打开 Safari 扩展设置"
         attributes:@{
-            NSForegroundColorAttributeName: YLColor(0xF7F4EC, 1),
+            NSForegroundColorAttributeName: YLColor(0xFFFFFF, 1),
             NSFontAttributeName: [NSFont systemFontOfSize:12 weight:NSFontWeightSemibold],
         }];
     openButton.wantsLayer = YES;
-    openButton.layer.backgroundColor = YLColor(0x111111, 1).CGColor;
+    openButton.layer.backgroundColor = YLColor(0x171717, 1).CGColor;
     openButton.layer.cornerRadius = 8;
     openButton.layer.borderWidth = 0;
     openButton.translatesAutoresizingMaskIntoConstraints = NO;
@@ -219,11 +229,11 @@ static NSView *YLStepRow(NSString *number, NSString *title, NSString *detail) {
     copyButton.wantsLayer = YES;
     copyButton.layer.backgroundColor = YLColor(0xFFFFFF, 1).CGColor;
     copyButton.layer.borderWidth = 1;
-    copyButton.layer.borderColor = YLColor(0xE2DED4, 1).CGColor;
+    copyButton.layer.borderColor = YLColor(0x171717, 0.14).CGColor;
     copyButton.layer.cornerRadius = 8;
     copyButton.attributedTitle = [[NSAttributedString alloc] initWithString:@"复制安装步骤"
         attributes:@{
-            NSForegroundColorAttributeName: YLColor(0x111111, 1),
+            NSForegroundColorAttributeName: YLColor(0x171717, 1),
             NSFontAttributeName: [NSFont systemFontOfSize:12 weight:NSFontWeightMedium],
         }];
     copyButton.translatesAutoresizingMaskIntoConstraints = NO;
@@ -236,11 +246,11 @@ static NSView *YLStepRow(NSString *number, NSString *title, NSString *detail) {
     quitButton.wantsLayer = YES;
     quitButton.layer.backgroundColor = YLColor(0xFFFFFF, 1).CGColor;
     quitButton.layer.borderWidth = 1;
-    quitButton.layer.borderColor = YLColor(0xE2DED4, 1).CGColor;
+    quitButton.layer.borderColor = YLColor(0x171717, 0.14).CGColor;
     quitButton.layer.cornerRadius = 8;
     quitButton.attributedTitle = [[NSAttributedString alloc] initWithString:@"退出"
         attributes:@{
-            NSForegroundColorAttributeName: YLColor(0x111111, 1),
+            NSForegroundColorAttributeName: YLColor(0x171717, 1),
             NSFontAttributeName: [NSFont systemFontOfSize:12 weight:NSFontWeightMedium],
         }];
     quitButton.translatesAutoresizingMaskIntoConstraints = NO;
@@ -260,9 +270,9 @@ static NSView *YLStepRow(NSString *number, NSString *title, NSString *detail) {
     [content addSubview:stack];
 
     NSTextField *footer = YLLabel(
-        @"译流 YiLiu  ·  数据仅发往你配置的 API  ·  com.yiliu.translator.extension",
+        @"网页内容仅发往你配置的翻译服务",
         9,
-        YLColor(0x7C776D, 1),
+        YLColor(0x171717, 0.72),
         NO);
     footer.alignment = NSTextAlignmentCenter;
     footer.translatesAutoresizingMaskIntoConstraints = NO;
@@ -291,8 +301,8 @@ static NSView *YLStepRow(NSString *number, NSString *title, NSString *detail) {
             NSURL *fallback = [NSURL URLWithString:@"x-apple.systempreferences:com.apple.Safari.Extensions"];
             [[NSWorkspace sharedWorkspace] openURL:fallback];
             NSAlert *alert = [[NSAlert alloc] init];
-            alert.messageText = @"没有找到已注册的译流扩展";
-            alert.informativeText = @"请确认 YiLiu.app 已拖入「应用程序」文件夹并至少打开一次，然后在 Safari 设置 → 扩展中手动启用。";
+            alert.messageText = @"没有找到已注册的 LikeBird 飞译扩展";
+            alert.informativeText = @"请确认 LikeBird.app 已拖入「应用程序」文件夹并至少打开一次，然后在 Safari 设置 → 扩展中手动启用。";
             [alert runModal];
         });
     }];
@@ -300,12 +310,12 @@ static NSView *YLStepRow(NSString *number, NSString *title, NSString *detail) {
 
 - (void)copySteps:(id)sender {
     NSString *steps =
-        @"译流 Safari 扩展安装步骤\n"
-         "1. 将 YiLiu.app 放入「应用程序」文件夹并打开。\n"
-         "2. Safari 设置 → 扩展，勾选「译流」。\n"
+        @"LikeBird 飞译 Safari 扩展安装步骤\n"
+         "1. 将 LikeBird.app 放入「应用程序」文件夹并打开。\n"
+         "2. Safari 设置 → 扩展，勾选「LikeBird 飞译」。\n"
          "3. 若看不到扩展：Safari 设置 → 高级，勾选「显示网页开发者功能」，再到「开发」菜单勾选「允许未签名的扩展」。\n"
-         "4. 在扩展设置中填入 API 地址、Key 和模型，点击「测试连接」。\n"
-         "5. 打开网页，点击工具栏「译」或按 ⌥A 翻译整页；选中文字后点击浮出的「译」划词翻译。\n";
+         "4. 在飞译设置中选择服务商，填入 API Key，然后连接。\n"
+         "5. 打开网页，点击工具栏的飞译图标或按 ⌥A 翻译整页；选中文字后点击浮出的飞译按钮划词翻译。\n";
     NSPasteboard *pasteboard = [NSPasteboard generalPasteboard];
     [pasteboard clearContents];
     [pasteboard setString:steps forType:NSPasteboardTypeString];

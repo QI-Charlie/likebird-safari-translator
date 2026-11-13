@@ -15,6 +15,7 @@ import {
   providerConfigFromForm,
   providerRequiresKey,
 } from '../shared/settings.js';
+import { splitTextSlots } from '../shared/text-slots.js';
 
 export class ApiError extends Error {
   /**
@@ -78,16 +79,23 @@ function headersFor(provider) {
   return { ...headers, ...parseExtraHeaders(provider.extraHeaders) };
 }
 
+function isKimiK3(provider) {
+  return provider.type === 'openai'
+    && endpointFor(provider) === 'https://api.moonshot.cn/v1/chat/completions'
+    && /^kimi-k3(?:[.-]|$)/.test(provider.model);
+}
+
 function bodyFor(provider, messages, { jsonMode, maxTokens, temperature }) {
   if (provider.type === 'anthropic') {
     const system = messages
       .filter((message) => message.role === 'system')
       .map((message) => message.content)
       .join('\n\n');
+    const isHaiku55 = /^claude-haiku-5-5(?:-|$)/.test(provider.model);
     return {
       model: provider.model,
       max_tokens: maxTokens,
-      temperature,
+      ...(isHaiku55 ? { thinking: { type: 'disabled' } } : { temperature }),
       system,
       messages: messages
         .filter((message) => message.role !== 'system')
@@ -98,10 +106,15 @@ function bodyFor(provider, messages, { jsonMode, maxTokens, temperature }) {
   const body = {
     model: provider.model,
     messages,
-    temperature,
-    max_tokens: maxTokens,
+    ...(isKimiK3(provider)
+      ? { reasoning_effort: 'low', max_completion_tokens: Math.max(maxTokens, 4096) }
+      : { temperature, max_tokens: maxTokens }),
     stream: false,
   };
+  if (provider.preset === 'deepseek' && /^(deepseek-flash|deepseek-v4-flash)$/.test(provider.model)) {
+    body.thinking = { type: 'disabled' };
+  }
+  if (provider.preset === 'qwen' && provider.model === 'qwen-plus') body.enable_thinking = false;
   if (jsonMode) body.response_format = { type: 'json_object' };
   return body;
 }
@@ -131,6 +144,12 @@ function extractText(data, type) {
 }
 
 function errorFromResponse(status, data, rawText) {
+  if (status === 402) {
+    return new ApiError('翻译服务账户余额不足。请在服务商后台确认余额，或在 飞译设置中切换服务。', 'INSUFFICIENT_BALANCE', {
+      status,
+      retryable: false,
+    });
+  }
   const providerMessage =
     data?.error?.message ||
     data?.message ||
@@ -325,6 +344,9 @@ export async function translateBatch({ items, settings, context = {} }) {
     items.map((item) => item.id),
   );
   const translations = Object.fromEntries(parsed.translations);
+  for (const { id, slots } of items) {
+    if (slots && !splitTextSlots(translations[id], slots)) delete translations[id];
+  }
 
   // One cheap repair pass for partially formatted responses. This happens with
   // smaller local models that occasionally skip the last array entry.
@@ -342,7 +364,10 @@ export async function translateBatch({ items, settings, context = {} }) {
         repaired.text,
         missing.map((item) => item.id),
       );
-      for (const [id, text] of repairedParsed.translations) translations[id] = text;
+      for (const { id, slots } of missing) {
+        const text = repairedParsed.translations.get(id);
+        if (text && (!slots || splitTextSlots(text, slots))) translations[id] = text;
+      }
       missing = items.filter((item) => !translations[item.id]);
     } catch {
       // Keep the original partial result; the UI exposes a retry action.
@@ -393,7 +418,7 @@ export async function testProvider(providerInput, targetLang = 'zh-CN') {
     jsonMode: false,
     maxTokens: 64,
     temperature: 0,
-    timeoutMs: 30000,
+    timeoutMs: isKimiK3(provider) ? 60000 : 30000,
   });
   return {
     ok: true,
@@ -424,6 +449,6 @@ export function apiErrorPayload(error) {
 
 export function ensureConfigured(settings) {
   if (!isProviderConfigured(settings)) {
-    throw new ApiError('请先在译流设置中配置翻译服务', 'NO_API_KEY');
+    throw new ApiError('请先在飞译设置中配置翻译服务', 'NO_API_KEY');
   }
 }

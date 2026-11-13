@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   buildBatchMessages,
+  buildSelectionMessages,
   extractBalancedJson,
   parseBatchResponse,
   parseSelectionResponse,
@@ -78,4 +79,10 @@ test('single-item plain prose is accepted', () => {
 test('selection parser strips labels and wrapping quotes', () => {
   assert.equal(parseSelectionResponse('翻译：“你好，世界”'), '你好，世界');
   assert.equal(parseSelectionResponse('```\nHello there\n```'), 'Hello there');
+});
+
+test('selection context follows the page context preference', () => {
+  const settings = mergeSettings({ advanced: { sendPageContext: false } });
+  const [, user] = buildSelectionMessages('Hello', settings, { title: 'Private title', before: 'Context' });
+  assert.deepEqual(JSON.parse(user.content), { selected_text: 'Hello' });
 });

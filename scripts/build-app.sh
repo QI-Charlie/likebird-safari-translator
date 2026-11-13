@@ -5,17 +5,20 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-VERSION="$(node -p "require('$ROOT/package.json').version")"
+VERSION="$(node -p "require(process.argv[1]).version" "$ROOT/package.json")"
 IDENTITY="${CODESIGN_IDENTITY:--}"
+ARCHS="${MACOS_ARCHS:-arm64 x86_64}"
+arch_flags=()
+for arch in $ARCHS; do arch_flags+=(-arch "$arch"); done
 
 # Signing inside ~/Documents can fail because macOS' file provider constantly
 # re-attaches FinderInfo xattrs. Assemble and sign in a plain temp directory,
 # then copy the already-signed bundle into dist/.
-BUILD_DIR="${TMPDIR:-/tmp}/yiliu-build-$$"
-APP="$BUILD_DIR/YiLiu.app"
-APPEX="$APP/Contents/PlugIns/YiLiu Extension.appex"
-DIST_APP="$ROOT/dist/YiLiu.app"
-ZIP="$ROOT/dist/YiLiu-$VERSION.zip"
+BUILD_DIR="${TMPDIR:-/tmp}/likebird-build-$$"
+APP="$BUILD_DIR/LikeBird.app"
+APPEX="$APP/Contents/PlugIns/LikeBird Extension.appex"
+DIST_APP="$ROOT/dist/LikeBird.app"
+ZIP="$ROOT/dist/LikeBird-$VERSION.zip"
 trap 'rm -rf "$BUILD_DIR"' EXIT
 
 if ! command -v clang >/dev/null 2>&1; then
@@ -32,13 +35,14 @@ echo "==> Building web extension"
 node "$ROOT/scripts/build.mjs"
 
 echo "==> Assembling Safari host app"
-rm -rf "$BUILD_DIR" "$ROOT/dist"
+rm -rf "$BUILD_DIR" "$DIST_APP"
+rm -f "$ZIP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/PlugIns"
 mkdir -p "$APPEX/Contents/MacOS" "$APPEX/Contents/Resources" "$ROOT/dist"
 
 cp "$ROOT/native/Info-App.plist" "$APP/Contents/Info.plist"
 cp "$ROOT/native/Info-Appex.plist" "$APPEX/Contents/Info.plist"
-cp "$ROOT/assets/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
+cp "$ROOT/assets/AppIcon.icns" "$ROOT/assets/LikeBirdWordmark.png" "$APP/Contents/Resources/"
 printf 'APPL????' > "$APP/Contents/PkgInfo"
 printf 'XPC!????' > "$APPEX/Contents/PkgInfo"
 
@@ -53,15 +57,15 @@ if [ ! -f "$APPEX/Contents/Resources/manifest.json" ]; then
 fi
 
 echo "==> Compiling native host"
-clang -fobjc-arc -mmacosx-version-min=12.0 \
+clang "${arch_flags[@]}" -fobjc-arc -mmacosx-version-min=12.0 \
   -framework Cocoa -framework SafariServices \
-  -o "$APP/Contents/MacOS/YiLiu" "$ROOT/native/AppMain.m"
+  -o "$APP/Contents/MacOS/LikeBird" "$ROOT/native/AppMain.m"
 
 echo "==> Compiling Safari extension bridge"
-clang -fobjc-arc -mmacosx-version-min=12.0 \
+clang "${arch_flags[@]}" -fobjc-arc -mmacosx-version-min=12.0 \
   -framework Foundation -framework SafariServices \
   -Wl,-e,_NSExtensionMain \
-  -o "$APPEX/Contents/MacOS/YiLiuExtension" "$ROOT/native/SafariWebExtensionHandler.m"
+  -o "$APPEX/Contents/MacOS/LikeBirdExtension" "$ROOT/native/SafariWebExtensionHandler.m"
 
 clear_metadata() {
   xattr -cr "$1" 2>/dev/null || true
@@ -111,11 +115,11 @@ Built:
   $ZIP
 
 Next:
-  1. Drag YiLiu.app into /Applications and open it.
-  2. Safari > Settings > Extensions, enable 译流.
+  1. Drag LikeBird.app into /Applications and open it.
+  2. Safari > Settings > Extensions, enable LikeBird.
   3. If it is not listed, enable Safari's Develop menu, then
      Develop > Allow Unsigned Extensions (repeat after every Safari restart).
-  4. Open the extension settings and configure your API key/model.
+  4. Open the extension settings and choose a service and connect with your API key.
 
 For distribution, re-run with a signing identity:
   CODESIGN_IDENTITY="Apple Development: Your Name (TEAMID)" npm run app

@@ -1,17 +1,18 @@
 :host {
   all: initial;
-  --yl-paper: #f7f4ec;
-  --yl-ink: #111111;
-  --yl-mist: #c6c2ba;
-  --yl-char: #2a2a28;
-  --yl-lime: #a6ff00;
-  --yl-iris: #a060f0;
+  --yl-paper: #f7f7f7;
+  --yl-ink: #171717;
+  --yl-char: #171717;
+  --yl-trigger-paper: #ffffff;
+  --yl-trigger-edge: rgba(23, 23, 23, 0.14);
+  --yl-lime: #a7ff00;
   --yl-card: #ffffff;
-  --yl-line: #e2ded4;
-  --yl-line-strong: #d2cdc1;
-  --yl-muted: #6f6b63;
-  --yl-faint: #7c776d;
-  --yl-shadow: 0 10px 30px rgba(17, 17, 17, 0.1);
+  --yl-line: rgba(23, 23, 23, 0.14);
+  --yl-line-strong: rgba(23, 23, 23, 0.34);
+  --yl-muted: rgba(23, 23, 23, 0.72);
+  --yl-faint: var(--yl-muted);
+  --yl-hover: rgba(23, 23, 23, 0.06);
+  --yl-shadow: 0 8px 28px rgba(23, 23, 23, 0.12);
   color-scheme: light dark;
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
 }
@@ -35,7 +36,7 @@
   -webkit-font-smoothing: antialiased;
 }
 
-.yl-layer button {
+.yl-layer :where(button) {
   appearance: none;
   border: 0;
   margin: 0;
@@ -55,28 +56,12 @@
   display: block;
   width: 15px;
   height: 15px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.7;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+  flex: none;
 }
 
-.yl-brand-mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 23px;
-  height: 23px;
-  border-radius: 6px;
-  background: var(--yl-lime);
-  color: #111111;
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-}
+.yl-mark { width: 22px; height: auto; display: block; flex: none; }
 
-.yl-trigger {
+.yl-layer .yl-trigger {
   position: fixed;
   display: flex;
   align-items: center;
@@ -84,12 +69,12 @@
   width: 34px;
   height: 34px;
   border-radius: 9px;
-  background: var(--yl-char);
+  background: var(--yl-trigger-paper);
   color: var(--yl-lime);
   font-size: 15px;
   font-weight: 700;
   pointer-events: auto;
-  box-shadow: 0 5px 16px rgba(17, 17, 17, 0.18);
+  box-shadow: inset 0 0 0 1px var(--yl-trigger-edge), 0 5px 16px rgba(23, 23, 23, 0.15);
   opacity: 0;
   transform: translateY(4px) scale(0.96);
   transition: opacity 140ms ease, transform 140ms ease;
@@ -104,14 +89,18 @@
   bottom: -4px;
   width: 8px;
   height: 8px;
-  background: var(--yl-char);
+  background: var(--yl-trigger-paper);
+  border-inline-end: 1px solid var(--yl-trigger-edge);
+  border-block-end: 1px solid var(--yl-trigger-edge);
   transform: translateX(-50%) rotate(45deg);
   border-radius: 1px;
 }
 
-.yl-trigger:hover {
-  background: #111111;
+.yl-layer .yl-trigger.is-visible:hover {
+  box-shadow: inset 0 0 0 1px rgba(23, 23, 23, 0.26), 0 6px 18px rgba(23, 23, 23, 0.19);
 }
+
+.yl-trigger.is-below::after { top: -4px; bottom: auto; transform: translateX(-50%) rotate(225deg); }
 
 .yl-trigger.is-visible {
   opacity: 1;
@@ -147,14 +136,14 @@
   display: flex;
   align-items: center;
   gap: 9px;
-  padding: 12px 12px 10px 14px;
+  padding: 8px 12px 8px 16px;
   border-bottom: 1px solid var(--yl-line);
   background: var(--yl-card);
 }
 
 .yl-bubble-title {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 6px;
   min-width: 0;
   flex: 1;
@@ -187,7 +176,7 @@
 }
 
 .yl-icon-btn:hover {
-  background: var(--yl-paper);
+  background: var(--yl-hover);
   color: var(--yl-ink);
 }
 
@@ -201,11 +190,7 @@
 .yl-source {
   max-height: 76px;
   overflow-y: auto;
-  margin-bottom: 11px;
-  padding: 8px 10px;
-  border: 1px solid var(--yl-line);
-  border-radius: 8px;
-  background: var(--yl-paper);
+  padding: 0 0 10px;
   color: var(--yl-muted);
   font-size: 12px;
   line-height: 1.55;
@@ -288,9 +273,12 @@
 }
 
 .yl-error-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   align-self: flex-start;
   padding: 6px 10px;
-  border: 1px solid var(--yl-line-strong, #d2cdc1);
+  border: 1px solid var(--yl-line-strong, #171717);
   border-radius: 7px;
   background: var(--yl-card);
   color: var(--yl-ink);
@@ -323,23 +311,12 @@
 }
 
 .yl-action:hover {
-  background: var(--yl-paper);
+  background: var(--yl-hover);
   color: var(--yl-ink);
 }
 
 .yl-action.is-done {
   color: var(--yl-ink);
-}
-
-.yl-foot-spacer {
-  flex: 1;
-}
-
-.yl-watermark {
-  padding-right: 3px;
-  color: var(--yl-faint);
-  font-size: 10px;
-  letter-spacing: 0.04em;
 }
 
 .yl-toast {
@@ -368,13 +345,13 @@
 }
 
 .yl-toast.is-error {
-  background: #6e1d16;
+  box-shadow: inset 3px 0 var(--yl-lime);
 }
 
 .yl-toast-action {
   flex: none;
   padding: 4px 8px;
-  border: 1px solid rgba(247, 244, 236, 0.3);
+  border: 1px solid rgba(247, 247, 247, 0.3);
   border-radius: 5px;
   background: transparent;
   color: var(--yl-paper);
@@ -385,91 +362,6 @@
 
 .yl-toast-action:hover {
   border-color: var(--yl-paper);
-}
-
-.yl-progress {
-  position: fixed;
-  right: 20px;
-  bottom: 20px;
-  width: min(292px, calc(100vw - 32px));
-  padding: 12px 13px 11px;
-  border-radius: 12px;
-  background: var(--yl-char);
-  color: var(--yl-paper);
-  pointer-events: auto;
-  opacity: 0;
-  transform: translateY(6px);
-  transition: opacity 150ms ease, transform 150ms ease;
-}
-
-.yl-progress.is-visible {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.yl-progress-row {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-}
-
-.yl-progress-mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 23px;
-  height: 23px;
-  border-radius: 6px;
-  background: var(--yl-lime);
-  color: #111111;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.yl-progress-label {
-  flex: 1;
-  overflow: hidden;
-  color: var(--yl-paper);
-  font-size: 11.5px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.yl-progress-count {
-  color: var(--yl-mist);
-  font-size: 10.5px;
-  font-variant-numeric: tabular-nums;
-}
-
-.yl-cancel {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 5px;
-  color: var(--yl-mist);
-}
-
-.yl-cancel:hover {
-  background: rgba(247, 244, 236, 0.08);
-  color: var(--yl-paper);
-}
-
-.yl-progress-track {
-  height: 3px;
-  margin-top: 9px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: rgba(247, 244, 236, 0.16);
-}
-
-.yl-progress-fill {
-  width: 0%;
-  height: 100%;
-  border-radius: inherit;
-  background: var(--yl-paper);
-  transition: width 300ms ease;
 }
 
 .yl-spin {
@@ -494,63 +386,20 @@
 
 @media (prefers-color-scheme: dark) {
   :host {
-    --yl-ink: #f7f4ec;
-    --yl-card: #333330;
-    --yl-line: #45453f;
-    --yl-line-strong: #55554d;
-    --yl-muted: #bdb8ae;
-    --yl-faint: #918d84;
-    --yl-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
-  }
-
-  .yl-bubble-head,
-  .yl-bubble-foot {
-    background: var(--yl-card);
-  }
-
-  .yl-source {
-    background: #2c2c29;
-  }
-
-  .yl-icon-btn:hover,
-  .yl-action:hover {
-    background: #3a3a36;
-  }
-
-  .yl-bubble-title strong,
-  .yl-result,
-  .yl-action.is-done,
-  .yl-error {
-    color: var(--yl-paper);
-  }
-
-  .yl-error-action {
-    border-color: var(--yl-line);
-    background: var(--yl-card);
-    color: var(--yl-paper);
-  }
-
-  .yl-spin {
-    border-color: var(--yl-line);
-    border-top-color: var(--yl-paper);
-  }
-
-  .yl-trigger,
-  .yl-trigger::after {
-    background: var(--yl-char);
-  }
-
-  .yl-trigger {
-    color: var(--yl-lime);
+    --yl-ink: #f7f7f7;
+    --yl-card: #171717;
+    --yl-line: rgba(247, 247, 247, 0.18);
+    --yl-line-strong: rgba(247, 247, 247, 0.42);
+    --yl-muted: rgba(247, 247, 247, 0.72);
+    --yl-hover: rgba(247, 247, 247, 0.08);
+    --yl-shadow: 0 8px 28px rgba(0, 0, 0, 0.30);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .yl-trigger,
   .yl-bubble,
-  .yl-toast,
-  .yl-progress,
-  .yl-progress-fill {
+  .yl-toast {
     transition: none;
   }
 

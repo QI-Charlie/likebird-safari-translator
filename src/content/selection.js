@@ -23,6 +23,7 @@ export class SelectionController {
     this.autoTimer = 0;
     this.started = false;
 
+    this.requestId = 0;
     this.onPointerUp = this.onPointerUp.bind(this);
     this.onKeyUp = this.onKeyUp.bind(this);
     this.onPointerDown = this.onPointerDown.bind(this);
@@ -33,6 +34,7 @@ export class SelectionController {
     this.overlay.onRetry = () => this.translateCurrent({ retry: true });
     this.overlay.onSettings = () => this.deps.openOptions();
     this.overlay.onClose = () => {
+      this.requestId += 1;
       this.loading = false;
       this.current = null;
     };
@@ -117,7 +119,7 @@ export class SelectionController {
     }
     const element = elementFromSelection(selection);
     if (isEditable(element)) return;
-    if (element?.closest?.('#yiliu-overlay-host, [data-yiliu-translation]')) return;
+    if (element?.closest?.('#yiliu-overlay-host')) return;
 
     const range = selection.getRangeAt(0);
     let rect = range.getBoundingClientRect();
@@ -151,16 +153,19 @@ export class SelectionController {
   }
 
   async translateCurrent({ retry = false } = {}) {
-    if (this.loading) return;
+    if (this.loading || !this.deps.getSettings()?.selection?.enabled) return;
     if (!this.current?.text) {
       this.captureSelection(null, true);
     }
     if (!this.current?.text) return;
+    const requestId = ++this.requestId;
+    const targetLang = this.deps.getSettings()?.targetLang || '';
     this.loading = true;
     this.overlay.hideTrigger();
     this.overlay.showBubble({ rect: this.current.rect, source: this.current.text });
     try {
       const response = await this.deps.requestSelection(this.current.text, this.current.context);
+      if (requestId !== this.requestId) return;
       if (!response?.ok) {
         this.loading = false;
         this.overlay.setBubbleError(response?.error || { message: '翻译失败，请重试' });
@@ -169,10 +174,11 @@ export class SelectionController {
       this.loading = false;
       this.overlay.setBubbleText(
         response.translation,
-        this.deps.getSettings()?.targetLang || '',
+        targetLang,
       );
       if (retry) this.overlay.toast('已重新翻译');
     } catch (error) {
+      if (requestId !== this.requestId) return;
       this.loading = false;
       this.overlay.setBubbleError({
         message: error?.message || '翻译失败，请检查网络或 API 设置',

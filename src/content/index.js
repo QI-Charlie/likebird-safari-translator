@@ -1,7 +1,5 @@
-import { BRAND } from '../shared/constants.js';
 import { mergeSettings } from '../shared/settings.js';
 import { extensionApi, sendRuntimeMessage } from '../shared/storage.js';
-import { hostMatchesAny } from '../shared/utils.js';
 import { OverlayUI } from './overlay.js';
 import { PageTranslator } from './page.js';
 import { SelectionController } from './selection.js';
@@ -16,7 +14,6 @@ const isTopFrame = (() => {
 })();
 
 let settings = mergeSettings({});
-let overlay = null;
 let selection = null;
 let page = null;
 let initialized = false;
@@ -29,8 +26,8 @@ function send(message) {
   return sendRuntimeMessage(message);
 }
 
-function report(state) {
-  send({ type: 'page.report', state }).catch(() => {});
+function report(state, status = page?.status()) {
+  send({ type: 'page.report', state, status, url: location.href }).catch(() => {});
 }
 
 function openOptions() {
@@ -46,7 +43,7 @@ function normalizePublicSettings(raw) {
 
 async function fetchSettings() {
   try {
-    const response = await send({ type: 'settings.get' });
+    const response = await sendRuntimeMessage({ type: 'settings.get' }, 5000);
     if (response?.ok && response.settings) {
       settings = normalizePublicSettings(response.settings);
       return;
@@ -59,85 +56,99 @@ async function fetchSettings() {
 
 function applySettings(next) {
   settings = normalizePublicSettings(next);
-  page?.applySettings(settings);
+  if (isTopFrame) page?.applySettings(settings);
   selection?.updateSettings();
 }
 
-function shouldAutoTranslate() {
-  if (!isTopFrame) return false;
-  if (!settings.configured) return false;
-  if (!settings.autoTranslateSites?.length) return false;
-  return hostMatchesAny(location.hostname, settings.autoTranslateSites);
+const completedRequests = new Set();
+
+function handlePageMessage(message) {
+  if (message.type === 'page.ping') return { ok: true, pong: true, viewportTranslation: true };
+  if (!page || !initialized) return { ok: false, error: '飞译正在连接网页，请稍后重试。' };
+  if (message.type === 'page.status') return page.status();
+  if (completedRequests.has(message.requestId)) {
+    return { ok: true, status: page.status() };
+  }
+
+  switch (message.type) {
+    case 'page.translate':
+      page.start().catch((error) => page.handleFatal(error));
+      break;
+    case 'page.toggle':
+      page.toggle();
+      break;
+    case 'page.stop':
+      page.cancel();
+      break;
+    case 'page.retry':
+      page.retryFailed().catch((error) => page.handleFatal(error));
+      break;
+    case 'page.restore':
+      page.restore();
+      break;
+    case 'page.display':
+      applySettings({ ...settings, displayMode: message.displayMode });
+      break;
+    case 'page.navigate':
+      page.scheduleRefresh();
+      break;
+    default:
+      return { ok: false, error: '未知页面消息' };
+  }
+  if (message.requestId) {
+    completedRequests.add(message.requestId);
+    if (completedRequests.size > 32) completedRequests.delete(completedRequests.values().next().value);
+  }
+  return { ok: true, status: page.status() };
 }
 
 function installMessageBridge() {
+  // The background can reach the same isolated script through executeScript
+  // when the Safari message channel fails to deliver a reply.
+  if (isTopFrame) globalThis.__EE_PAGE_REQUEST__ = handlePageMessage;
   api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-    Promise.resolve()
-      .then(async () => {
-        if (message?.type === 'page.ping') return { ok: true, pong: true };
-        await ready;
-        if (!page) return { ok: false, error: '译流初始化失败，请刷新页面' };
-        if (message?.type === 'page.status') return page.status();
-        if (message?.type === 'settings.changed') {
+    const type = message?.type;
+    if (type === 'page.ping' || type === 'page.status') {
+      if (isTopFrame) {
+        try {
+          sendResponse(handlePageMessage(message));
+        } catch (error) {
+          sendResponse({ ok: false, error: error.message });
+        }
+      }
+      return false;
+    }
+    if (type?.startsWith('page.') && !isTopFrame) return false;
+    ready.then(() => {
+      if (type?.startsWith('page.')) return handlePageMessage(message);
+      switch (type) {
+        case 'settings.changed':
           applySettings(message.settings);
           return { ok: true };
-        }
-
-        switch (message?.type) {
-          case 'page.translate':
-            if (!isTopFrame) return { ok: false, unsupported: true };
-            page.start({ force: true }).catch((error) => {
-              overlay.toast(error?.message || '页面翻译失败', { type: 'error' });
-            });
-            return { ok: true, started: true };
-          case 'page.toggle':
-            if (!isTopFrame) return { ok: false, unsupported: true };
-            page.toggle();
-            return { ok: true };
-          case 'page.restore':
-            if (!isTopFrame) return { ok: false, unsupported: true };
-            page.restore();
-            return { ok: true };
-          case 'selection.translate':
-            selection.translateSuppliedText(message.text);
-            return { ok: true };
-          case 'selection.translate-current':
-            selection.translateCurrent();
-            return { ok: true };
-          default:
-            return { ok: false, error: '未知页面消息' };
-        }
-      })
-      .then(sendResponse)
-      .catch((error) => {
-        sendResponse({ ok: false, error: { message: error?.message || '页面脚本错误' } });
-      });
+        case 'selection.translate':
+          selection.translateSuppliedText(message.text);
+          return { ok: true };
+        case 'selection.translate-current':
+          selection.translateCurrent();
+          return { ok: true };
+        default:
+          return { ok: false, error: '未知页面消息' };
+      }
+    }).then(sendResponse, (error) => {
+      sendResponse({ ok: false, error: { message: error?.message || '页面脚本错误' } });
+    });
     return true;
   });
 }
 
-function scheduleAutoTranslate() {
-  if (!shouldAutoTranslate()) return;
-  const delay = document.readyState === 'complete' ? 650 : 1200;
-  window.setTimeout(() => {
-    if (!page.active && !page.hasTranslations()) {
-      page.start({ auto: true }).catch(() => {});
-    }
-  }, delay);
-}
-
 async function initialize() {
   if (initialized) return;
-  document.documentElement.setAttribute('data-yiliu-version', BRAND.version);
-
-  overlay = new OverlayUI();
-  page = new PageTranslator(overlay, {
+  page = new PageTranslator({
     getSettings: () => settings,
     requestBatch: (items, context) => send({ type: 'translate.batch', items, context }),
     report,
-    openOptions,
   });
-  selection = new SelectionController(overlay, {
+  selection = new SelectionController(new OverlayUI(), {
     getSettings: () => settings,
     requestSelection: (text, context) =>
       send({ type: 'translate.selection', text, context }),
@@ -147,9 +158,12 @@ async function initialize() {
   initialized = true;
 
   await fetchSettings();
-  page.applySettings(settings);
+  if (isTopFrame) {
+    page.startObserver();
+    page.applySettings(settings);
+    page.startAuto();
+  }
   resolveReady();
-  scheduleAutoTranslate();
 }
 
 // A re-injected content script (after an extension update) must not create a
@@ -178,11 +192,16 @@ if (!globalThis.__YILIU_CONTENT_LOADED__) {
 
 window.addEventListener('pagehide', () => {
   selection?.stop();
-  page?.stopObserver();
+  page?.suspend();
 });
 
 window.addEventListener('pageshow', (event) => {
   if (!event.persisted) return;
   selection?.start();
-  if (page?.hasTranslations()) page.startObserver();
+  if (isTopFrame) {
+    page?.startObserver();
+    sendRuntimeMessage({ type: 'settings.get' }, 5000).then((response) => {
+      if (response?.ok) applySettings(response.settings);
+    }).catch(() => {}).finally(() => page?.scheduleRefresh());
+  }
 });

@@ -1,17 +1,17 @@
 import overlayCss from './overlay.css';
+import brandMark from '../../assets/icons/brand-small.png';
+import closeIcon from '../../assets/remix-icon/close-line.svg';
+import copyIcon from '../../assets/remix-icon/file-copy-line.svg';
+import speakIcon from '../../assets/remix-icon/volume-up-line.svg';
+import retryIcon from '../../assets/remix-icon/refresh-line.svg';
+import selectionIcon from '../../assets/remix-icon/text-snippet.svg';
+import settingsIcon from '../../assets/remix-icon/settings-3-line.svg';
 
-const ICON = {
-  close:
-    '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15"/></svg>',
-  copy:
-    '<svg viewBox="0 0 20 20" aria-hidden="true"><rect x="7" y="7" width="9" height="9" rx="2"/><path d="M5 12H4.5A1.5 1.5 0 013 10.5v-6A1.5 1.5 0 014.5 3h6A1.5 1.5 0 0112 4.5V5"/></svg>',
-  speak:
-    '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 8v4h3l4 3V5L7 8H4z"/><path d="M14 7.5a4 4 0 010 5M16.5 5a7 7 0 010 10"/></svg>',
-  retry:
-    '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16 10a6 6 0 11-1.8-4.3"/><path d="M16 4v4h-4"/></svg>',
-  closeSmall:
-    '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 6l8 8M14 6l-8 8"/></svg>',
-};
+const MARK = `<img class="yl-mark" src="${brandMark}" alt="" />`;
+
+function decorativeIcon(svg) {
+  return svg.replace('<svg ', '<svg aria-hidden="true" focusable="false" ');
+}
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -46,7 +46,6 @@ export class OverlayUI {
     this.host.setAttribute('data-yiliu-extension', '');
     this.host.style.cssText =
       'all:initial;position:fixed;inset:0;z-index:2147483647;pointer-events:none;';
-    (document.documentElement || document.body).appendChild(this.host);
     this.shadow = this.host.attachShadow({ mode: 'open' });
 
     const style = document.createElement('style');
@@ -56,19 +55,13 @@ export class OverlayUI {
     this.layer = document.createElement('div');
     this.layer.className = 'yl-layer';
     this.layer.innerHTML = `
-      <div class="yl-trigger" role="button" tabindex="0" aria-label="翻译选中文字" hidden>
-        <span>译</span>
-      </div>
+      <button class="yl-trigger" type="button" aria-label="翻译选中文字" hidden>${MARK}</button>
 
-      <section class="yl-bubble" role="dialog" aria-label="译流划词翻译" aria-hidden="true">
+      <section class="yl-bubble" role="dialog" aria-label="划词翻译" aria-hidden="true">
         <header class="yl-bubble-head">
-          <span class="yl-brand-mark" aria-hidden="true">译</span>
-          <div class="yl-bubble-title">
-            <strong>译流</strong>
-            <span>划词翻译</span>
-          </div>
+          <div class="yl-bubble-title">${decorativeIcon(selectionIcon)}<strong>划词翻译</strong></div>
           <button class="yl-icon-btn" data-act="close" title="关闭" aria-label="关闭">
-            ${ICON.close}
+            ${decorativeIcon(closeIcon)}
           </button>
         </header>
         <div class="yl-bubble-body">
@@ -78,30 +71,16 @@ export class OverlayUI {
         </div>
         <footer class="yl-bubble-foot">
           <button class="yl-action" data-act="copy" type="button">
-            ${ICON.copy}<span>复制</span>
+            ${decorativeIcon(copyIcon)}<span>复制</span>
           </button>
           <button class="yl-action" data-act="speak" type="button">
-            ${ICON.speak}<span>朗读</span>
+            ${decorativeIcon(speakIcon)}<span>朗读</span>
           </button>
           <button class="yl-action" data-act="retry" type="button" hidden>
-            ${ICON.retry}<span>重试</span>
+            ${decorativeIcon(retryIcon)}<span>重试</span>
           </button>
-          <span class="yl-foot-spacer"></span>
-          <span class="yl-watermark">译流 · YiLiu</span>
         </footer>
       </section>
-
-      <div class="yl-progress" aria-live="polite" aria-hidden="true">
-        <div class="yl-progress-row">
-          <span class="yl-progress-mark">译</span>
-          <span class="yl-progress-label">正在翻译此页…</span>
-          <span class="yl-progress-count">0 / 0</span>
-          <button class="yl-cancel" data-act="cancel" title="停止翻译" aria-label="停止翻译">
-            ${ICON.closeSmall}
-          </button>
-        </div>
-        <div class="yl-progress-track"><div class="yl-progress-fill"></div></div>
-      </div>
 
       <div class="yl-toast" role="status" aria-live="polite"></div>
     `;
@@ -113,20 +92,18 @@ export class OverlayUI {
     this.result = this.shadow.querySelector('[data-role="result"]');
     this.copyButton = this.shadow.querySelector('[data-act="copy"]');
     this.speakButton = this.shadow.querySelector('[data-act="speak"]');
+    this.bubbleFooter = this.shadow.querySelector('.yl-bubble-foot');
     this.retryButton = this.shadow.querySelector('[data-act="retry"]');
-    this.progress = this.shadow.querySelector('.yl-progress');
-    this.toast = this.shadow.querySelector('.yl-toast');
+    this.toastNode = this.shadow.querySelector('.yl-toast');
 
     this.currentText = '';
     this.currentTranslation = '';
     this.currentLang = '';
     this.anchorRect = null;
     this.toastTimer = 0;
-    this.progressHideTimer = 0;
     this.onTrigger = null;
     this.onRetry = null;
     this.onSettings = null;
-    this.onCancel = null;
     this.onClose = null;
 
     this.bind();
@@ -143,23 +120,14 @@ export class OverlayUI {
       event.stopPropagation();
       this.onTrigger?.();
     });
-    this.trigger.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter' || event.key === ' ') {
-        event.preventDefault();
-        this.onTrigger?.();
-      }
-    });
 
     this.shadow.querySelector('[data-act="close"]').addEventListener('click', () => this.hideBubble());
-    this.shadow.querySelector('[data-act="cancel"]').addEventListener('click', () => this.onCancel?.());
     this.copyButton.addEventListener('click', () => this.copyTranslation());
     this.speakButton.addEventListener('click', () => this.speakTranslation());
     this.retryButton.addEventListener('click', () => this.onRetry?.());
 
     this.bubble.addEventListener('pointerdown', (event) => event.stopPropagation());
     this.bubble.addEventListener('click', (event) => event.stopPropagation());
-    this.progress.addEventListener('pointerdown', (event) => event.stopPropagation());
-    this.progress.addEventListener('click', (event) => event.stopPropagation());
 
     this.shadow.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') this.hideBubble();
@@ -168,6 +136,7 @@ export class OverlayUI {
 
   showTrigger(rect) {
     if (!rect) return;
+    if (!this.host.isConnected) document.documentElement.appendChild(this.host);
     const width = 34;
     const gap = 9;
     let top = rect.top - width - gap;
@@ -181,12 +150,14 @@ export class OverlayUI {
     this.trigger.style.top = `${top}px`;
     this.trigger.classList.toggle('is-below', below);
     this.trigger.hidden = false;
+    this.trigger.tabIndex = 0;
     this.trigger.setAttribute('aria-hidden', 'false');
     this.trigger.classList.add('is-visible');
   }
 
   hideTrigger() {
     this.trigger.classList.remove('is-visible');
+    this.trigger.tabIndex = -1;
     this.trigger.setAttribute('aria-hidden', 'true');
     clearTimeout(this.triggerHideTimer);
     this.triggerHideTimer = setTimeout(() => {
@@ -195,6 +166,7 @@ export class OverlayUI {
   }
 
   showBubble({ rect, source = '', loading = true } = {}) {
+    if (!this.host.isConnected) document.documentElement.appendChild(this.host);
     this.anchorRect = rect || {
       left: (window.innerWidth || 1024) - 430,
       right: (window.innerWidth || 1024) - 30,
@@ -212,9 +184,9 @@ export class OverlayUI {
     // throttles in background tabs.
     this.bubble.classList.remove('is-visible');
     this.bubble.setAttribute('aria-hidden', 'false');
-    this.positionBubble(this.anchorRect);
-    this.bubble.classList.add('is-visible');
     if (loading) this.setBubbleLoading();
+    else this.positionBubble(this.anchorRect);
+    this.bubble.classList.add('is-visible');
   }
 
   positionBubble(rect) {
@@ -239,6 +211,9 @@ export class OverlayUI {
   setBubbleLoading(message = '正在翻译…') {
     this.result.innerHTML = `<div class="yl-loading"><span class="yl-spin"></span><span>${message}</span></div>`;
     this.retryButton.hidden = true;
+    this.copyButton.hidden = true;
+    this.speakButton.hidden = true;
+    this.bubbleFooter.hidden = true;
     this.positionBubble(this.anchorRect);
   }
 
@@ -246,6 +221,8 @@ export class OverlayUI {
     this.currentTranslation = text;
     this.currentLang = lang;
     this.result.textContent = text;
+    this.bubbleFooter.hidden = !text;
+    this.copyButton.hidden = !text;
     this.speakButton.hidden = !('speechSynthesis' in window) || !text;
     this.retryButton.hidden = true;
     this.positionBubble(this.anchorRect);
@@ -254,7 +231,7 @@ export class OverlayUI {
   setBubbleError(payload = {}) {
     this.currentTranslation = '';
     const message = payload.message || '翻译失败，请稍后重试';
-    const needsSettings = payload.code === 'NO_API_KEY' || payload.code === 'AUTH' || payload.code === 'CONFIG';
+    const needsSettings = ['NO_API_KEY', 'AUTH', 'CONFIG', 'NOT_FOUND', 'INSUFFICIENT_BALANCE'].includes(payload.code);
     this.result.innerHTML = '';
     const box = document.createElement('div');
     box.className = 'yl-error';
@@ -265,12 +242,15 @@ export class OverlayUI {
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'yl-error-action';
-      button.textContent = '打开译流设置';
+      button.innerHTML = `${decorativeIcon(settingsIcon)}<span>打开飞译设置</span>`;
       button.addEventListener('click', () => this.onSettings?.());
       box.appendChild(button);
     }
     this.result.appendChild(box);
-    this.retryButton.hidden = false;
+    this.copyButton.hidden = true;
+    this.speakButton.hidden = true;
+    this.retryButton.hidden = needsSettings && !payload.retryable;
+    this.bubbleFooter.hidden = this.retryButton.hidden;
     this.positionBubble(this.anchorRect);
   }
 
@@ -306,55 +286,14 @@ export class OverlayUI {
     window.speechSynthesis.speak(utterance);
   }
 
-  showProgress({ total = 0, label = '正在翻译此页…' } = {}) {
-    clearTimeout(this.progressHideTimer);
-    this.progressTotal = total;
-    this.progressDone = 0;
-    this.progressLabel = label;
-    this.shadow.querySelector('.yl-progress-label').textContent = label;
-    this.shadow.querySelector('.yl-progress-count').textContent = `0 / ${total}`;
-    this.shadow.querySelector('.yl-progress-fill').style.width = '0%';
-    this.progress.classList.add('is-visible');
-    this.progress.setAttribute('aria-hidden', 'false');
-  }
-
-  updateProgress({ done, total, label, errors = 0 } = {}) {
-    if (Number.isFinite(total)) this.progressTotal = total;
-    if (Number.isFinite(done)) this.progressDone = done;
-    const totalValue = this.progressTotal || 0;
-    const doneValue = this.progressDone || 0;
-    const percent = totalValue ? Math.min(100, Math.round((doneValue / totalValue) * 100)) : 0;
-    if (label) {
-      this.progressLabel = label;
-      this.shadow.querySelector('.yl-progress-label').textContent = label;
-    }
-    this.shadow.querySelector('.yl-progress-count').textContent =
-      `${doneValue} / ${totalValue}${errors ? ` · ${errors} 失败` : ''}`;
-    this.shadow.querySelector('.yl-progress-fill').style.width = `${percent}%`;
-  }
-
-  hideProgress(delay = 0) {
-    clearTimeout(this.progressHideTimer);
-    const hide = () => {
-      this.progress.classList.remove('is-visible');
-      this.progress.setAttribute('aria-hidden', 'true');
-    };
-    if (delay) this.progressHideTimer = setTimeout(hide, delay);
-    else hide();
-  }
-
-  setProgressVisible(visible) {
-    if (visible) this.progress.classList.add('is-visible');
-    else this.hideProgress();
-  }
-
   toast(message, { type = 'info', duration = 3600, action = null } = {}) {
+    if (!this.host.isConnected) document.documentElement.appendChild(this.host);
     clearTimeout(this.toastTimer);
-    this.toast.className = `yl-toast${type === 'error' ? ' is-error' : ''}`;
-    this.toast.innerHTML = '';
+    this.toastNode.className = `yl-toast${type === 'error' ? ' is-error' : ''}`;
+    this.toastNode.innerHTML = '';
     const text = document.createElement('span');
     text.textContent = message;
-    this.toast.appendChild(text);
+    this.toastNode.appendChild(text);
     if (action?.label) {
       const button = document.createElement('button');
       button.type = 'button';
@@ -364,17 +303,17 @@ export class OverlayUI {
         action.onClick?.();
         this.hideToast();
       });
-      this.toast.appendChild(button);
-      this.toast.style.pointerEvents = 'auto';
+      this.toastNode.appendChild(button);
+      this.toastNode.style.pointerEvents = 'auto';
     } else {
-      this.toast.style.pointerEvents = 'none';
+      this.toastNode.style.pointerEvents = 'none';
     }
-    this.toast.classList.add('is-visible');
+    this.toastNode.classList.add('is-visible');
     this.toastTimer = setTimeout(() => this.hideToast(), duration);
   }
 
   hideToast() {
-    this.toast.classList.remove('is-visible');
+    this.toastNode.classList.remove('is-visible');
     clearTimeout(this.toastTimer);
   }
 

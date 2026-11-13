@@ -2,10 +2,10 @@ import { CACHE_STORAGE_KEY } from '../shared/constants.js';
 import { hashText } from '../shared/utils.js';
 import { storageGet, storageRemove, storageSet } from '../shared/storage.js';
 
-function cacheKey(text, settings) {
+function cacheKey(text, settings, scope) {
   return hashText(
     [
-      text,
+      scope ? `${scope}\u0000${text}` : text,
       settings.targetLang,
       settings.sourceLang,
       settings.style,
@@ -52,18 +52,18 @@ export class TranslationCache {
     this.maxEntries = settings.cache.maxEntries;
   }
 
-  get(text, settings) {
+  get(text, settings, scope) {
     if (!settings.cache.enabled) return null;
-    const key = cacheKey(text, settings);
+    const key = cacheKey(text, settings, scope);
     const entry = this.entries.get(key);
     if (!entry) return null;
     entry.at = Date.now();
     return entry.text;
   }
 
-  set(text, translation, settings) {
+  set(text, translation, settings, scope) {
     if (!settings.cache.enabled || !translation) return;
-    const key = cacheKey(text, settings);
+    const key = cacheKey(text, settings, scope);
     this.entries.set(key, { text: translation, at: Date.now() });
     this.dirty = true;
     this.prune();

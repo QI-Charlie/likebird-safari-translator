@@ -2,10 +2,10 @@ import { STYLE_OPTIONS, languageName } from '../shared/constants.js';
 import { squish, stripCodeFence, truncate } from '../shared/utils.js';
 
 const TOKEN_RULE = [
-  'Inline markers such as <x0> and </x0> are placeholders for links, emphasis, or code.',
-  'Preserve every marker exactly, including its number, and keep pairs balanced.',
-  'Never translate, renumber, drop, or duplicate a marker. Move a marker pair around the corresponding translated phrase when word order changes.',
-  'Do not output any other HTML tags.',
+  'Numbered pairs such as <x0> and </x0> enclose separate text slots in the original page.',
+  'Read all slots in an item together for context, then translate the text inside each slot.',
+  'Return each marker pair exactly once, in the original order. Keep linked or styled words in their own slot.',
+  'Return only the marker pairs and their text for a marked item. An unmarked item must stay unmarked. Do not add HTML.',
 ].join(' ');
 
 function stylePrompt(settings) {
@@ -19,7 +19,7 @@ export function parseGlossary(raw) {
     .map((line) => line.trim())
     .filter((line) => line && !line.startsWith('#'))
     .map((line) => {
-      const match = line.match(/^(.+?)\s*(?:=>|=|＝|→)\s*(.+)$/);
+      const match = line.match(/^(.+?)\s*(?:=>|=|\uff1d|\u2192)\s*(.+)$/);
       if (!match) return null;
       const source = match[1].trim();
       const target = match[2].trim();
@@ -71,11 +71,12 @@ export function buildBatchMessages(items, settings, context = {}) {
       ? languageName(settings.sourceLang)
       : 'the source language, detected automatically';
 
-  const system = `You are the translation engine inside a browser extension called 译流 (YiLiu). You translate web pages from ${source} into ${target}.
+  const system = `You are the translation engine inside a browser extension called LikeBird. You translate web pages from ${source} into ${target}.
 
 Translation requirements:
 - ${stylePrompt(settings)}
 - Translate meaning, not words. Produce fluent ${target} prose with natural punctuation.
+- Keep each item close to its original length when possible. Keep punctuation and symbols meaningful to the original.
 - Keep numbers, URLs, email addresses, code identifiers, and product names intact.
 - Do not summarize, explain, answer, or censor the content. Translate it.
 - ${TOKEN_RULE}
@@ -126,7 +127,7 @@ Rules:
 
   const user = {
     selected_text: text,
-    ...(Object.keys(contextPayload).length ? { context: contextPayload } : {}),
+    ...(settings.advanced?.sendPageContext && Object.keys(contextPayload).length ? { context: contextPayload } : {}),
   };
 
   return [
@@ -221,9 +222,9 @@ function entriesFromParsed(parsed) {
 
 function cleanPlainTranslation(value) {
   return stripCodeFence(value)
-    .replace(/^(?:翻译|译文|translation|translated text)\s*[:：]\s*/i, '')
+    .replace(/^(?:\u7ffb\u8bd1|\u8bd1\u6587|translation|translated text)\s*[:\uff1a]\s*/i, '')
     .trim()
-    .replace(/^["“](.*)["”]$/s, '$1')
+    .replace(/^["\u201c](.*)["\u201d]$/s, '$1')
     .trim();
 }
 
@@ -290,7 +291,7 @@ export function parseBatchResponse(raw, expectedIds = []) {
 export function parseSelectionResponse(raw) {
   const text = stripCodeFence(String(raw ?? '').trim());
   const withoutLabel = text
-    .replace(/^(?:翻译|译文|translation|translated text)\s*[:：]\s*/i, '')
+    .replace(/^(?:\u7ffb\u8bd1|\u8bd1\u6587|translation|translated text)\s*[:\uff1a]\s*/i, '')
     .trim();
-  return withoutLabel.replace(/^["“](.*)["”]$/s, '$1').trim();
+  return withoutLabel.replace(/^["\u201c](.*)["\u201d]$/s, '$1').trim();
 }

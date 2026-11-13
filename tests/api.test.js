@@ -2,8 +2,9 @@ import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 
-import { translateBatch, testProvider, ApiError } from '../src/background/api.js';
+import { translateBatch, translateSelection, testProvider, ApiError } from '../src/background/api.js';
 import { mergeSettings } from '../src/shared/settings.js';
+import { PROVIDER_PRESETS } from '../src/shared/constants.js';
 
 let server;
 let baseUrl;
@@ -42,6 +43,12 @@ before(async () => {
     if (request.url.includes('/unauthorized')) {
       response.statusCode = 401;
       response.end(JSON.stringify({ error: { message: 'bad key' } }));
+      return;
+    }
+
+    if (request.url.includes('/unfunded')) {
+      response.statusCode = 402;
+      response.end(JSON.stringify({ error: { message: 'Insufficient Balance (request_id: fixture)' } }));
       return;
     }
 
@@ -153,4 +160,43 @@ test('testProvider performs a tiny round trip', async () => {
   assert.equal(result.ok, true);
   assert.equal(result.sample, '你好');
   assert.ok(result.latencyMs >= 0);
+});
+
+test('Kimi K3 uses a low reasoning budget and omits fixed sampling parameters', async (t) => {
+  const fetch = t.mock.method(globalThis, 'fetch', async () =>
+    Response.json({ choices: [{ message: { content: '你好' } }] }));
+  const provider = { ...PROVIDER_PRESETS.moonshot, preset: 'moonshot', apiKey: 'test-key' };
+  const result = await testProvider(provider);
+
+  const [url, request] = fetch.mock.calls[0].arguments;
+  const body = JSON.parse(request.body);
+  assert.equal(url, 'https://api.moonshot.cn/v1/chat/completions');
+  assert.equal(body.model, 'kimi-k3');
+  assert.equal(body.reasoning_effort, 'low');
+  assert.equal(body.max_completion_tokens, 4096);
+  assert.equal(Object.hasOwn(body, 'temperature'), false);
+  assert.equal(Object.hasOwn(body, 'max_tokens'), false);
+  assert.equal(result.sample, '你好');
+});
+
+test('Qwen Plus uses the Beijing endpoint and disables thinking for translation', async (t) => {
+  const fetch = t.mock.method(globalThis, 'fetch', async () =>
+    Response.json({ choices: [{ message: { content: '你好' } }] }));
+  const provider = { ...PROVIDER_PRESETS.qwen, preset: 'qwen', apiKey: 'test-key' };
+  await testProvider(provider);
+  const [url, request] = fetch.mock.calls[0].arguments;
+  const body = JSON.parse(request.body);
+  assert.equal(url, 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions');
+  assert.equal(body.model, 'qwen-plus');
+  assert.equal(body.enable_thinking, false);
+});
+
+test('selection surfaces a payment-required response as an actionable billing error', async () => {
+  const settings = settingsFor({ provider: { baseUrl: `${baseUrl}/unfunded` } });
+  await assert.rejects(() => translateSelection({ text: 'Ruben Gijselhart', settings }), {
+    code: 'INSUFFICIENT_BALANCE',
+    status: 402,
+    retryable: false,
+    message: /^翻译服务账户余额不足/,
+  });
 });

@@ -1,10 +1,10 @@
 {
   "manifest_version": 2,
-  "name": "译流 · 网页翻译",
-  "short_name": "译流",
-  "version": "1.0.0",
-  "description": "用你自己的大模型 API 翻译整个网页，或选中文字即时翻译。双语对照、术语表、本地缓存。",
-  "author": "YiLiu",
+  "name": "LikeBird 飞译",
+  "short_name": "LikeBird",
+  "version": "1.2.0",
+  "description": "在 Safari 里原位翻译网页，保留原站样式，默认译为简体中文。也支持划词翻译。",
+  "author": "QI-Charlie",
   "icons": {
     "32": "icons/icon-32.png",
     "48": "icons/icon-48.png",
@@ -27,7 +27,7 @@
     "persistent": false
   },
   "browser_action": {
-    "default_title": "译流 · 翻译此页",
+    "default_title": "LikeBird 飞译 · 翻译此页",
     "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/icon-16.png",
@@ -49,9 +49,6 @@
       ],
       "js": [
         "content.js"
-      ],
-      "css": [
-        "content.css"
       ],
       "run_at": "document_idle",
       "all_frames": true

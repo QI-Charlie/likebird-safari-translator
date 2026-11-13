@@ -165,6 +165,12 @@ export function hostMatchesAny(host, rules) {
   return rules.some((rule) => hostMatchesRule(host, rule));
 }
 
+export function autoTranslatesHost(host, settings) {
+  const name = host.toLowerCase().replace(/^www\./, '');
+  return Boolean(name && hostMatchesAny(name, settings?.autoTranslateSites)
+    && !settings?.autoTranslateDisabledSites?.includes(name));
+}
+
 /** Split a textarea value into trimmed, unique, non-empty lines. */
 export function linesToArray(value) {
   const seen = new Set();

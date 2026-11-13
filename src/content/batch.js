@@ -23,29 +23,6 @@ export function makeBatches(blocks, { maxItems = 10, maxChars = 6000 } = {}) {
   return batches;
 }
 
-export function isInViewport(element, ratio = 1.4) {
-  try {
-    const rect = element.getBoundingClientRect();
-    const height = window.innerHeight || 800;
-    return rect.bottom > -height * 0.3 && rect.top < height * ratio;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Translate what the reader can see first, preserving relative order inside the
- * two priority groups. Rendering is independent of dispatch order.
- */
-export function prioritizeBlocks(blocks) {
-  const visible = [];
-  const rest = [];
-  for (const block of blocks) {
-    (isInViewport(block.element) ? visible : rest).push(block);
-  }
-  return [...visible, ...rest];
-}
-
 /** Run async work with bounded concurrency while preserving result order. */
 export async function runPool(items, worker, concurrency = 2) {
   const results = new Array(items.length);

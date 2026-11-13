@@ -1,146 +1,246 @@
-import { LIMITS, targetLanguageLabel } from '../shared/constants.js';
-import { hostMatchesAny, debounce } from '../shared/utils.js';
-import {
-  applyPageStyle,
-  collectBlocks,
-  insertTranslation,
-  markBlockState,
-  pageLooksLikeTarget,
-  renderTranslation,
-  restoreTranslations,
-} from './dom.js';
-import { makeBatches, prioritizeBlocks } from './batch.js';
+import { LIMITS } from '../shared/constants.js';
+import { splitTextSlots } from '../shared/text-slots.js';
+import { autoTranslatesHost, hostMatchesAny } from '../shared/utils.js';
+import { collectBlocks, pageLooksLikeTarget, visibleTextFilter } from './dom.js';
+import { makeBatches } from './batch.js';
 
 export class PageTranslator {
-  /**
-   * @param {import('./overlay.js').OverlayUI} overlay
-   * @param {{
-   *   getSettings: () => any,
-   *   requestBatch: (items: Array<{id: string, text: string}>, context: any) => Promise<any>,
-   *   report: (state: string) => void,
-   *   openOptions: () => void,
-   * }} deps
-   */
-  constructor(overlay, deps) {
-    this.overlay = overlay;
+  constructor(deps) {
     this.deps = deps;
     this.settings = deps.getSettings();
     this.active = false;
-    this.cancelled = false;
-    this.fatal = false;
+    this.runId = 0;
+    this.following = false;
+    this.stopped = false;
+    this.error = '';
     this.done = 0;
     this.total = 0;
     this.errorCount = 0;
     this.failedBlocks = new Map();
+    this.replacements = new Map();
+    this.bilingualBlocks = new Set();
     this.observer = null;
+    this.route = this.currentRoute();
+    this.suspended = false;
     this.refreshTimer = 0;
-    this.refreshRounds = 0;
-    this.refreshing = false;
-    this.everTranslated = false;
-    this.lastUrl = location.href;
+    this.scheduleRefresh = () => {
+      if (this.refreshTimer || this.suspended) return;
+      this.refreshTimer = setTimeout(() => {
+        this.refreshTimer = 0;
+        this.refresh().catch((error) => this.handleFatal(error));
+      }, 160);
+    };
+    this.onViewportChange = () => {
+      if (this.following || this.shouldAutoTranslate()) this.scheduleRefresh();
+    };
+  }
 
-    this.scheduleRefresh = debounce(() => this.refreshNewContent(), 850);
+  currentRoute() {
+    const { pathname, search, hash } = location;
+    return pathname + search + (hash.startsWith('#/') || hash.startsWith('#!') ? hash : '');
+  }
+
+  shouldAutoTranslate() {
+    return (this.settings.configured || this.settings.targetLang === 'zh-TW')
+      && !this.isExcluded() && autoTranslatesHost(location.hostname, this.settings);
+  }
+
+  checkNavigation() {
+    const route = this.currentRoute();
+    if (route === this.route) return false;
+    this.route = route;
+    const auto = this.shouldAutoTranslate();
+    this.reset({ restore: !auto });
+    if (auto) {
+      for (const node of this.replacements.keys()) this.isReplaced(node);
+      this.startAuto();
+    } else {
+      this.deps.report('restored');
+    }
+    return true;
+  }
+
+  startAuto() {
+    if (this.following || this.stopped || !this.shouldAutoTranslate()) return;
+    if (this.settings.skipTargetLanguagePages && pageLooksLikeTarget(this.settings.targetLang)) return;
+    this.following = true;
+    this.scheduleRefresh();
   }
 
   isExcluded() {
     return hostMatchesAny(location.hostname, this.settings?.excludeSites || []);
   }
 
+  isReplaced(node) {
+    const replacement = this.replacements.get(node);
+    if (!replacement) return false;
+    const displayed = this.settings.displayMode === 'bilingual' ? replacement.source : replacement.text;
+    if (node.isConnected && node.data === displayed) return true;
+    this.replacements.delete(node);
+    return false;
+  }
+
   hasTranslations() {
-    return Boolean(document.querySelector('[data-yiliu-translation]'));
+    for (const [node, { source, text }] of this.replacements) {
+      if (this.isReplaced(node) && source !== text) return true;
+    }
+    return false;
+  }
+
+  restoreText() {
+    for (const block of this.bilingualBlocks) block.translation?.remove();
+    this.bilingualBlocks.clear();
+    for (const [node, replacement] of this.replacements) {
+      if (replacement.source !== replacement.text && node.data === replacement.text) {
+        node.data = replacement.source;
+      }
+    }
+    this.replacements.clear();
+  }
+
+  renderBilingual(block) {
+    if (!block.parts.every(({ node, parent }) => node.parentNode === parent && this.isReplaced(node))) {
+      block.translation?.remove();
+      this.bilingualBlocks.delete(block);
+      if (this.settings.displayMode === 'bilingual') {
+        for (const { node } of block.parts) this.replacements.delete(node);
+      }
+      return;
+    }
+    if (this.settings.displayMode !== 'bilingual' || block.translation?.isConnected) return;
+
+    let anchor = block.parts.at(-1).node;
+    // Put the translation outside any inline links or emphasis.
+    while (anchor.parentElement && anchor.parentElement !== block.element) anchor = anchor.parentElement;
+    const translation = document.createElement('span');
+    translation.setAttribute('data-ee-bilingual', '');
+    translation.lang = block.targetLang;
+    translation.dir = 'auto';
+    translation.style.display = 'block';
+    translation.style.marginBlockStart = '0.25em';
+    translation.textContent = block.parts.map(({ node }) => this.replacements.get(node).text).join('').trim();
+    anchor.parentNode.insertBefore(translation, anchor.nextSibling);
+    block.translation = translation;
+  }
+
+  setDisplayMode(next) {
+    if (this.settings.displayMode === next.displayMode) return;
+    for (const [node, { source, text }] of this.replacements) {
+      if (this.isReplaced(node) && source !== text) node.data = next.displayMode === 'bilingual' ? source : text;
+    }
+    this.settings = next;
+    for (const block of this.bilingualBlocks) {
+      if (next.displayMode === 'bilingual') this.renderBilingual(block);
+      else block.translation?.remove();
+    }
+    this.reportStatus();
+  }
+
+  suspend() {
+    this.stopObserver();
+    if (this.active) {
+      this.runId += 1;
+      this.active = false;
+    }
   }
 
   status() {
     return {
       active: this.active,
+      following: this.following,
       translated: this.done,
       total: this.total,
       errors: this.errorCount,
+      error: this.error,
+      stopped: this.stopped,
       hasTranslation: this.hasTranslations(),
-      mode: this.settings?.mode || 'bilingual',
-      targetLang: this.settings?.targetLang || 'zh-CN',
+      targetLang: this.settings.targetLang,
+      displayMode: this.settings.displayMode,
       excluded: this.isExcluded(),
     };
   }
 
-  async start({ force = false, auto = false } = {}) {
-    if (this.active) {
-      this.overlay.toast('正在翻译此页，请稍候…');
-      return;
-    }
+  async start() {
+    if (this.active) return;
     this.settings = this.deps.getSettings();
-    if (this.isExcluded()) {
-      this.overlay.toast('当前站点在译流的排除列表中，可在设置中移除', {
-        type: 'error',
-        duration: 6000,
-        action: { label: '打开设置', onClick: () => this.deps.openOptions() },
-      });
-      return;
-    }
-    if (
-      auto &&
-      this.settings.skipTargetLanguagePages &&
-      pageLooksLikeTarget(this.settings.targetLang)
-    ) {
-      return;
-    }
+    if (this.isExcluded()) return;
+    this.route = this.currentRoute();
+    this.reset();
+    this.following = true;
+    return this.refresh();
+  }
 
-    // A second run (e.g. after changing the target language) should rebuild
-    // from the original DOM rather than skipping already-marked blocks.
-    if (this.hasTranslations()) restoreTranslations(document);
-    applyPageStyle(this.settings);
-    const allBlocks = collectBlocks(document.body, {
-      limit: LIMITS.maxPageBlocks,
-      maxChars: LIMITS.maxBlockChars,
-    });
-    if (!allBlocks.length) {
-      this.overlay.toast('未找到可翻译的正文内容');
-      return;
-    }
-
-    const blocks = prioritizeBlocks(allBlocks);
-    this.active = true;
-    this.cancelled = false;
-    this.fatal = false;
+  reset({ restore = true } = {}) {
+    this.runId += 1;
+    this.active = false;
+    this.following = false;
+    this.stopped = false;
+    this.error = '';
     this.done = 0;
+    this.total = 0;
     this.errorCount = 0;
-    this.total = blocks.length;
     this.failedBlocks.clear();
-    this.everTranslated = false;
-    this.lastUrl = location.href;
-    this.deps.report('translating');
-    this.overlay.showProgress({ total: this.total, label: '正在翻译此页…' });
+    this.clearRefresh();
+    if (restore) this.restoreText();
+  }
 
+  async refresh({ retry = false } = {}) {
+    if (this.checkNavigation() || this.suspended || this.active || !this.following) return;
+
+    for (const node of this.replacements.keys()) this.isReplaced(node);
+    for (const block of this.bilingualBlocks) this.renderBilingual(block);
+    // Failed text can be retried explicitly. A site's own text updates are eligible again.
+    const failedNodes = new Set();
+    for (const [id, block] of this.failedBlocks) {
+      if (retry || !this.isCurrent(block)) {
+        this.failedBlocks.delete(id);
+      } else {
+        for (const { node } of block.parts) failedNodes.add(node);
+      }
+    }
+    this.errorCount = this.failedBlocks.size;
+    if (!this.errorCount) this.error = '';
+
+    const blocks = collectBlocks(document.body, {
+      skipNode: (node) => this.isReplaced(node) || failedNodes.has(node),
+      includeBlock: visibleTextFilter(document),
+    });
+    if (!blocks.length) {
+      this.total = this.done + this.errorCount;
+      this.reportStatus();
+      return;
+    }
+
+    const runId = ++this.runId;
+    this.active = true;
+    this.total = this.done + this.errorCount + blocks.length;
+    this.deps.report('translating');
     try {
-      await this.translateBlocks(blocks, { refresh: false });
+      await this.translateBlocks(blocks, runId);
     } finally {
-      this.active = false;
-      this.overlay.hideProgress(900);
-      if (!this.cancelled) {
-        this.overlay.hideProgress(900);
-        if (this.done > 0) {
-          document.documentElement.classList.add('yiliu-page-translated');
-          this.deps.report('done');
-          const suffix = this.errorCount ? `，${this.errorCount} 段未完成` : '';
-          this.overlay.toast(`已翻译 ${this.done} 段${suffix}`, {
-            duration: 2600,
-            action: this.errorCount
-              ? { label: '重试失败段落', onClick: () => this.retryFailed() }
-              : null,
-          });
-          this.startObserver();
-        } else if (!this.fatal) {
-          this.deps.report('error');
-          this.overlay.toast('没有成功翻译的内容，请检查 API 设置', {
-            type: 'error',
-            action: { label: '打开设置', onClick: () => this.deps.openOptions() },
-          });
-        }
+      if (runId === this.runId) {
+        this.active = false;
+        this.total = this.done + this.errorCount;
+        this.reportStatus();
+        if (this.observer) this.scheduleRefresh();
       }
     }
   }
 
-  async translateBlocks(blocks, { refresh = false } = {}) {
+  reportStatus() {
+    const status = this.status();
+    if (this.active) this.deps.report('translating', status);
+    else if (this.error || this.errorCount) this.deps.report('error', status);
+    else if (this.done || status.hasTranslation) this.deps.report('done', status);
+    else this.deps.report('restored', status);
+  }
+
+  isCurrent(block) {
+    return block.parts.every(({ node, parent, source }) =>
+      node.isConnected && node.parentNode === parent && node.data === source);
+  }
+
+  async translateBlocks(blocks, runId) {
     if (!blocks.length) return;
     const { maxItems, concurrency } = this.settings.batch;
     const batches = makeBatches(blocks, {
@@ -152,251 +252,156 @@ export class PageTranslator {
     const workers = Array.from(
       { length: Math.max(1, Math.min(concurrency, batches.length)) },
       async () => {
-        while (!this.cancelled && cursor < batches.length) {
+        while (runId === this.runId && cursor < batches.length) {
           const index = cursor;
           cursor += 1;
-          await this.runBatch(batches[index], { refresh });
+          await this.runBatch(batches[index], runId);
         }
       },
     );
     await Promise.all(workers);
   }
 
-  async runBatch(blocks, { refresh = false } = {}) {
-    if (this.cancelled) return;
-    for (const block of blocks) markBlockState(block.element, 'loading');
-    const items = blocks.map((block) => ({ id: block.id, text: block.text }));
+  async runBatch(blocks, runId) {
+    if (runId !== this.runId || this.checkNavigation()) return;
+    const visible = visibleTextFilter(document);
+    const current = blocks.filter((block) => this.isCurrent(block) && visible(block.parts));
+    this.total -= blocks.length - current.length;
+    if (!current.length) return;
+    const items = current.map(({ id, text, language, parts }) => ({ id, text, language, slots: parts.length }));
     let response;
     try {
-      response = await this.deps.requestBatch(items, {
-        url: location.href,
-        title: document.title,
-      });
+      response = await this.deps.requestBatch(items, { url: location.href, title: document.title });
     } catch (error) {
-      this.handleFatal({
-        message: error?.message || '无法连接译流后台，请刷新页面后重试',
-        code: 'BACKGROUND',
-      });
-      return;
+      response = { error: error?.message || '无法连接飞译，请刷新页面后重试' };
     }
 
-    if (this.cancelled) return;
-    if (!response?.ok) {
-      this.handleFatal(response?.error || { message: '翻译失败，请稍后重试' });
-      return;
+    if (runId !== this.runId || this.checkNavigation()) return;
+    if (!response?.ok || response.warning) {
+      const error = response?.error || response?.warning;
+      this.error ||= (typeof error === 'string' ? error : error?.message) || '翻译失败，请稍后重试';
     }
 
-    let batchErrors = 0;
-    for (const block of blocks) {
-      if (this.cancelled) return;
-      const translated = response.translations?.[block.id];
-      if (translated) {
-        try {
-          const html = renderTranslation(translated, block.tokens);
-          if (html) {
-            insertTranslation(block.element, html, {
-              lang: this.settings.targetLang,
-              id: block.id,
-            });
-            this.done += 1;
-            this.everTranslated = true;
-            this.failedBlocks.delete(block.id);
-            this.overlay.updateProgress({
-              done: this.done,
-              total: this.total,
-              errors: this.errorCount,
-            });
-          } else {
-            batchErrors += 1;
-            this.markFailed(block);
-          }
-        } catch {
-          batchErrors += 1;
-          this.markFailed(block);
-        }
-      } else {
-        batchErrors += 1;
-        this.markFailed(block);
+    for (const block of current) {
+      // A site can change text while the provider is working. Keep its latest value.
+      if (!this.isCurrent(block)) {
+        this.failedBlocks.delete(block.id);
+        this.total -= 1;
+        continue;
       }
+      const slots = splitTextSlots(response?.translations?.[block.id], block.parts.length);
+      if (!slots) {
+        this.failedBlocks.set(block.id, block);
+        continue;
+      }
+      block.parts.forEach(({ node, source }, index) => {
+        const text = source.replace(source.trim(), () => slots[index]);
+        this.replacements.set(node, { source, text });
+        if (source !== text && this.settings.displayMode !== 'bilingual') node.data = text;
+      });
+      if (block.parts.some(({ node, source }) => this.replacements.get(node).text !== source)) {
+        block.targetLang = this.settings.targetLang;
+        this.bilingualBlocks.add(block);
+        this.renderBilingual(block);
+      }
+      this.done += 1;
+      this.failedBlocks.delete(block.id);
     }
-
-    const responseErrors = Array.isArray(response.errors) ? response.errors.length : 0;
-    this.errorCount += Math.max(batchErrors, responseErrors);
-    this.overlay.updateProgress({
-      done: this.done,
-      total: this.total,
-      errors: this.errorCount,
-    });
-    if (this.errorCount > 0) this.deps.report('error');
-  }
-
-  markFailed(block) {
-    markBlockState(block.element, 'error');
-    this.failedBlocks.set(block.id, block);
+    this.errorCount = this.failedBlocks.size;
   }
 
   handleFatal(error) {
-    if (this.fatal && this.cancelled) return;
-    this.fatal = true;
-    this.cancelled = true;
-    this.active = false;
+    this.cancel();
+    this.error = (typeof error === 'string' ? error : error?.message) || '翻译失败，请稍后重试';
     this.deps.report('error');
-    this.overlay.hideProgress(0);
-    const needsSettings =
-      error?.code === 'NO_API_KEY' || error?.code === 'AUTH' || error?.code === 'CONFIG';
-    this.overlay.toast(error?.message || '翻译失败，请稍后重试', {
-      type: 'error',
-      duration: 6500,
-      action: needsSettings
-        ? { label: '打开设置', onClick: () => this.deps.openOptions() }
-        : null,
-    });
   }
 
   cancel() {
-    if (!this.active) return;
-    this.cancelled = true;
+    this.runId += 1;
     this.active = false;
-    this.overlay.hideProgress(0);
-    this.overlay.toast('已停止翻译，已完成的段落会保留');
-    this.deps.report(this.hasTranslations() ? 'done' : 'restored');
+    this.following = false;
+    this.stopped = true;
+    this.clearRefresh();
+    this.reportStatus();
   }
 
-  async retryFailed() {
+  retryFailed() {
     if (this.active) return;
-    const blocks = [...this.failedBlocks.values()].filter((block) => block.element?.isConnected);
-    if (!blocks.length) {
-      this.overlay.toast('没有需要重试的段落');
-      return;
-    }
-    this.active = true;
-    this.cancelled = false;
-    this.fatal = false;
-    this.total = this.done + blocks.length;
-    this.overlay.showProgress({ total: this.total, label: '正在重试未完成的段落…' });
-    this.overlay.updateProgress({ done: this.done, total: this.total });
-    try {
-      await this.translateBlocks(blocks, { refresh: true });
-    } finally {
-      this.active = false;
-      this.overlay.hideProgress(700);
-      if (!this.cancelled) {
-        this.deps.report(this.done ? 'done' : 'error');
-        this.overlay.toast(
-          this.failedBlocks.size
-            ? `仍有 ${this.failedBlocks.size} 段未完成`
-            : '未完成的段落已全部补译',
-          { type: this.failedBlocks.size ? 'error' : 'info' },
-        );
-      }
-    }
+    this.following = true;
+    this.stopped = false;
+    return this.refresh({ retry: true });
   }
 
   restore() {
-    this.cancelled = true;
-    this.active = false;
-    this.stopObserver();
-    restoreTranslations(document);
-    this.overlay.hideProgress(0);
-    this.overlay.hideBubble();
-    this.overlay.toast('已恢复原文');
-    this.done = 0;
-    this.total = 0;
-    this.errorCount = 0;
-    this.failedBlocks.clear();
+    this.reset();
+    // Keep original text on this page until an explicit request or the next navigation.
+    this.stopped = true;
     this.deps.report('restored');
   }
 
   toggle() {
-    if (this.active) {
-      this.cancel();
-      return;
-    }
-    if (this.hasTranslations()) this.restore();
-    else this.start({ force: true });
+    if (this.active) this.cancel();
+    else if (this.following || this.hasTranslations()) this.restore();
+    else this.start().catch((error) => this.handleFatal(error));
   }
 
-  applySettings(nextSettings) {
-    const previousTarget = this.settings?.targetLang;
-    const hadTranslation = this.hasTranslations();
-    this.settings = nextSettings;
-    applyPageStyle(nextSettings);
-    if (hadTranslation && previousTarget && previousTarget !== nextSettings.targetLang) {
-      this.overlay.toast(
-        `目标语言已切换为${targetLanguageLabel(nextSettings.targetLang)}，重新翻译后生效`,
-        { duration: 4200 },
-      );
+  applySettings(next) {
+    const autoBefore = this.shouldAutoTranslate();
+    const languageChanged = this.settings.targetLang !== next.targetLang;
+    this.setDisplayMode(next);
+    this.settings = next;
+    const autoNow = this.shouldAutoTranslate();
+    if (languageChanged || (autoBefore && !autoNow) || this.isExcluded()) {
+      if (this.following) this.cancel();
+    }
+    if (autoNow && (!autoBefore || languageChanged)) {
+      this.stopped = false;
+      if (languageChanged && this.hasTranslations()) this.reset();
+      this.startAuto();
     }
   }
 
   startObserver() {
-    if (this.observer || !document.body) return;
+    if (this.observer || !document.documentElement) return;
+    this.suspended = false;
+    const view = document.defaultView;
     this.observer = new MutationObserver((mutations) => {
-      let relevant = false;
-      for (const mutation of mutations) {
-        for (const node of mutation.addedNodes) {
-          if (node.nodeType === 3 && node.nodeValue?.trim()) {
-            relevant = true;
-            break;
-          }
-          if (node.nodeType === 1) {
-            if (node.matches?.('.yiliu-translation, #yiliu-overlay-host')) continue;
-            if (node.closest?.('.yiliu-translation, #yiliu-overlay-host')) continue;
-            if (node.textContent?.trim()) {
-              relevant = true;
-              break;
-            }
-          }
-        }
-        if (relevant) break;
-      }
+      if (this.checkNavigation() || !this.following) return;
+      const relevant = mutations.some(({ type, target, addedNodes, removedNodes }) => {
+        if (type === 'characterData') return !this.isReplaced(target);
+        if (type === 'attributes') return true;
+        return addedNodes.length || removedNodes.length;
+      });
       if (relevant) this.scheduleRefresh();
     });
-    this.observer.observe(document.body, { childList: true, subtree: true });
+    this.observer.observe(document.documentElement, {
+      characterData: true, childList: true, subtree: true,
+      attributes: true, attributeFilter: ['class', 'style', 'hidden', 'open', 'aria-hidden'],
+    });
+    view?.addEventListener('scroll', this.onViewportChange, { capture: true, passive: true });
+    view?.addEventListener('resize', this.onViewportChange);
+    view?.addEventListener('popstate', this.scheduleRefresh);
+    view?.addEventListener('hashchange', this.scheduleRefresh);
+    view?.navigation?.addEventListener('currententrychange', this.scheduleRefresh);
+    document.addEventListener('visibilitychange', this.scheduleRefresh);
   }
 
   stopObserver() {
+    this.suspended = true;
     this.observer?.disconnect();
     this.observer = null;
-    this.scheduleRefresh.cancel();
+    this.clearRefresh();
+    const view = document.defaultView;
+    view?.removeEventListener('scroll', this.onViewportChange, true);
+    view?.removeEventListener('resize', this.onViewportChange);
+    view?.removeEventListener('popstate', this.scheduleRefresh);
+    view?.removeEventListener('hashchange', this.scheduleRefresh);
+    view?.navigation?.removeEventListener('currententrychange', this.scheduleRefresh);
+    document.removeEventListener('visibilitychange', this.scheduleRefresh);
   }
 
-  async refreshNewContent() {
-    if (this.refreshing || this.active || this.cancelled || !this.observer) return;
-    if (this.refreshRounds >= 50 || this.total >= LIMITS.maxPageBlocks) {
-      this.stopObserver();
-      return;
-    }
-    if (location.href !== this.lastUrl) {
-      // A SPA route change keeps the content script alive. Reset DOM state on
-      // the next manual action instead of translating the previous page's nodes.
-      this.stopObserver();
-      return;
-    }
-    this.refreshRounds += 1;
-    const remaining = Math.max(20, LIMITS.maxPageBlocks - this.total);
-    const blocks = collectBlocks(document.body, {
-      limit: remaining,
-      maxChars: LIMITS.maxBlockChars,
-    });
-    if (!blocks.length) return;
-    this.refreshing = true;
-    this.active = true;
-    this.cancelled = false;
-    this.total += blocks.length;
-    this.overlay.showProgress({
-      total: this.total,
-      label: '正在翻译新增内容…',
-    });
-    this.overlay.updateProgress({ done: this.done, total: this.total, errors: this.errorCount });
-    try {
-      await this.translateBlocks(prioritizeBlocks(blocks), { refresh: true });
-    } finally {
-      this.refreshing = false;
-      this.active = false;
-      this.overlay.hideProgress(600);
-      this.overlay.updateProgress({ done: this.done, total: this.total, errors: this.errorCount });
-      if (this.done) this.deps.report(this.errorCount ? 'error' : 'done');
-    }
+  clearRefresh() {
+    clearTimeout(this.refreshTimer);
+    this.refreshTimer = 0;
   }
 }

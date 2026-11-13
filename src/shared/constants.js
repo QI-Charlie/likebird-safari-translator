@@ -7,9 +7,9 @@ const BUILD_VERSION =
   typeof __YILIU_VERSION__ !== 'undefined' ? __YILIU_VERSION__ : 'dev';
 
 export const BRAND = Object.freeze({
-  name: '译流',
-  english: 'YiLiu',
-  tagline: '让每一页，都读得懂',
+  name: 'LikeBird 飞译',
+  english: 'LikeBird',
+  tagline: 'Like a Bird.',
   version: BUILD_VERSION,
 });
 
@@ -80,40 +80,48 @@ export const STYLE_OPTIONS = Object.freeze([
   },
 ]);
 
-export const MODE_OPTIONS = Object.freeze([
-  {
-    value: 'bilingual',
-    label: '双语对照',
-    hint: '译文显示在原文下方，适合阅读与学习',
-  },
-  {
-    value: 'replace',
-    label: '仅看译文',
-    hint: '隐藏原文，只保留翻译后的内容',
-  },
-]);
-
-export const DISPLAY_STYLES = Object.freeze([
-  { value: 'plain', label: '简洁' },
-  { value: 'soft', label: '柔和底色' },
-  { value: 'line', label: '左侧竖线' },
-]);
-
 export const PROVIDER_PRESETS = Object.freeze({
   deepseek: {
     label: 'DeepSeek',
     type: 'openai',
     baseUrl: 'https://api.deepseek.com/v1',
-    model: 'deepseek-chat',
+    model: 'deepseek-flash',
     jsonMode: true,
     keyless: false,
     hint: '性价比高，中文表达自然',
+  },
+  qwen: {
+    label: '千问 · 阿里云百炼',
+    type: 'openai',
+    baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    model: 'qwen-plus',
+    jsonMode: true,
+    keyless: false,
+    hint: '使用百炼华北 2（北京）地域的按量付费 API Key',
+  },
+  zhipu: {
+    label: '智谱 GLM',
+    type: 'openai',
+    baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
+    model: 'glm-4.7-flash',
+    jsonMode: false,
+    keyless: false,
+    hint: '使用智谱开放平台的标准 API Key',
+  },
+  moonshot: {
+    label: 'Kimi · 月之暗面',
+    type: 'openai',
+    baseUrl: 'https://api.moonshot.cn/v1',
+    model: 'kimi-k3',
+    jsonMode: false,
+    keyless: false,
+    hint: '使用 Kimi 开放平台按量计费的 API Key',
   },
   openai: {
     label: 'OpenAI',
     type: 'openai',
     baseUrl: 'https://api.openai.com/v1',
-    model: 'gpt-4o-mini',
+    model: 'gpt-4.1-mini',
     jsonMode: true,
     keyless: false,
     hint: '兼容 GPT 系列与多数 OpenAI 格式服务',
@@ -122,7 +130,7 @@ export const PROVIDER_PRESETS = Object.freeze({
     label: 'OpenRouter',
     type: 'openai',
     baseUrl: 'https://openrouter.ai/api/v1',
-    model: 'openai/gpt-4o-mini',
+    model: 'openai/gpt-4.1-mini',
     jsonMode: true,
     keyless: false,
     hint: '一个 Key 调用多家模型',
@@ -135,24 +143,6 @@ export const PROVIDER_PRESETS = Object.freeze({
     jsonMode: true,
     keyless: false,
     hint: '国内访问稳定，支持多种开源模型',
-  },
-  moonshot: {
-    label: 'Moonshot',
-    type: 'openai',
-    baseUrl: 'https://api.moonshot.cn/v1',
-    model: 'moonshot-v1-8k',
-    jsonMode: true,
-    keyless: false,
-    hint: 'Kimi 开放平台',
-  },
-  zhipu: {
-    label: '智谱 GLM',
-    type: 'openai',
-    baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
-    model: 'glm-4-flash',
-    jsonMode: true,
-    keyless: false,
-    hint: 'GLM 系列模型',
   },
   ollama: {
     label: 'Ollama（本地）',
@@ -173,10 +163,10 @@ export const PROVIDER_PRESETS = Object.freeze({
     hint: '在 LM Studio 中启动本地服务器',
   },
   anthropic: {
-    label: 'Anthropic Claude',
+    label: 'Anthropic',
     type: 'anthropic',
     baseUrl: 'https://api.anthropic.com/v1',
-    model: 'claude-3-5-haiku-latest',
+    model: 'claude-haiku-5-5',
     jsonMode: false,
     keyless: false,
     hint: '使用 Anthropic Messages API',
@@ -184,7 +174,7 @@ export const PROVIDER_PRESETS = Object.freeze({
   custom: {
     label: '自定义 / 兼容接口',
     type: 'openai',
-    baseUrl: 'https://api.example.com/v1',
+    baseUrl: '',
     model: '',
     jsonMode: false,
     keyless: false,
